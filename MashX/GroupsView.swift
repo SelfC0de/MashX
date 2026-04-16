@@ -128,6 +128,24 @@ struct GroupsView: View {
                         APIGroupRow(group: g, accent: accent)
                     }
                     .buttonStyle(.plain)
+                    .contextMenu {
+                        Button {
+                            UIPasteboard.general.string = "mashx://join/\(g.id)"
+                            toast.show("Ссылка скопирована", style: .success, icon: "link")
+                        } label: {
+                            Label("Скопировать ссылку", systemImage: "link")
+                        }
+                        Button {
+                            let link = "mashx://join/\(g.id)"
+                            let av = UIActivityViewController(activityItems: [link], applicationActivities: nil)
+                            if let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+                               let root = scene.windows.first?.rootViewController {
+                                root.present(av, animated: true)
+                            }
+                        } label: {
+                            Label("Отправить", systemImage: "square.and.arrow.up")
+                        }
+                    }
                     Divider().background(Theme.sep).padding(.leading, 72)
                 }
                 if filtered.isEmpty && !isLoading {
@@ -211,6 +229,49 @@ struct GroupDetailView: View {
                         .background(Theme.card).cornerRadius(16)
                         .overlay(RoundedRectangle(cornerRadius: 16).stroke(Theme.border, lineWidth: 0.5))
                         .padding(.horizontal, 16).padding(.top, 8)
+
+                        // Пригласить по ссылке
+                        Button {
+                            let link = "mashx://join/\(group.id)"
+                            UIPasteboard.general.string = link
+                            toast.show("Ссылка скопирована", style: .success, icon: "link")
+                        } label: {
+                            HStack(spacing: 10) {
+                                Image(systemName: "link.badge.plus").font(.system(size: 15)).foregroundColor(accent)
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("Пригласить по ссылке").font(.system(size: 14, weight: .semibold)).foregroundColor(Theme.text)
+                                    Text("mashx://join/\(group.id)").font(.system(size: 11)).foregroundColor(Theme.muted).lineLimit(1)
+                                }
+                                Spacer()
+                                Image(systemName: "doc.on.clipboard").font(.system(size: 13)).foregroundColor(accent)
+                            }
+                            .padding(14)
+                            .background(Theme.card).cornerRadius(14)
+                            .overlay(RoundedRectangle(cornerRadius: 14).stroke(accent.opacity(0.3), lineWidth: 0.5))
+                        }
+                        .buttonStyle(.plain)
+                        .padding(.horizontal, 16)
+
+                        // Поделиться ссылкой
+                        Button {
+                            let link = "mashx://join/\(group.id)"
+                            let av = UIActivityViewController(activityItems: [link], applicationActivities: nil)
+                            if let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+                               let root = scene.windows.first?.rootViewController {
+                                root.present(av, animated: true)
+                            }
+                        } label: {
+                            HStack(spacing: 10) {
+                                Image(systemName: "square.and.arrow.up").font(.system(size: 15)).foregroundColor(accent)
+                                Text("Отправить в чат").font(.system(size: 14, weight: .semibold)).foregroundColor(Theme.text)
+                                Spacer()
+                            }
+                            .padding(14)
+                            .background(Theme.card).cornerRadius(14)
+                            .overlay(RoundedRectangle(cornerRadius: 14).stroke(Theme.border, lineWidth: 0.5))
+                        }
+                        .buttonStyle(.plain)
+                        .padding(.horizontal, 16)
 
                         // Members preview
                         if !members.isEmpty {

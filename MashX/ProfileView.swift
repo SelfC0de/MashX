@@ -92,6 +92,16 @@ struct ProfileView: View {
                     guard let item else { return }
                     Task { await uploadAvatar(item) }
                 }
+                .task {
+                    // Загружаем текущий аватар с сервера при появлении
+                    if avatarImage == nil, let urlStr = auth.currentUser?.avatar_url,
+                       !urlStr.isEmpty, let url = URL(string: urlStr) {
+                        if let (data, _) = try? await URLSession.shared.data(from: url),
+                           let img = UIImage(data: data) {
+                            avatarImage = img
+                        }
+                    }
+                }
 
                 VStack(spacing: 4) {
                     let displayName = auth.currentUser?.display_name ?? settings.username
@@ -107,8 +117,8 @@ struct ProfileView: View {
                             .padding(.horizontal, 40)
                     }
 
-                    // Онлайн статус
-                    let isOnline = auth.currentUser?.is_online ?? false
+                    // Онлайн статус — учитываем оффлайн режим
+                    let isOnline = (auth.currentUser?.is_online ?? false) && !settings.offlineMode
                     HStack(spacing: 5) {
                         Circle()
                             .fill(isOnline ? Color(hex: "#10B981") : Theme.dim)
