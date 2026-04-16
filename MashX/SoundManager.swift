@@ -10,6 +10,8 @@ final class SoundManager {
     private init() { preload() }
 
     private func preload() {
+        try? AVAudioSession.sharedInstance().setCategory(.ambient, mode: .default)
+        try? AVAudioSession.sharedInstance().setActive(true)
         for name in ["message_in", "message_out", "notification", "splash"] {
             guard let url = Bundle.main.url(forResource: name, withExtension: "caf"),
                   let player = try? AVAudioPlayer(contentsOf: url) else { continue }
