@@ -59,10 +59,10 @@ struct AppRootView: View {
         .animation(.easeInOut(duration: 0.4), value: auth.state == .authenticated)
         .animation(.easeInOut(duration: 0.4), value: splashDone)
         .task {
-            // Запускаем checkSession и минимальный таймер параллельно
+            SoundManager.shared.playSplash()
             async let session: () = auth.checkSession()
             async let delay: () = {
-                try? await Task.sleep(nanoseconds: 1_800_000_000) // 1.8 сек
+                try? await Task.sleep(nanoseconds: 1_800_000_000)
             }()
             _ = await (session, delay)
             withAnimation { splashDone = true }
@@ -103,7 +103,6 @@ struct SplashView: View {
                 scale = 1.0
                 opacity = 1.0
             }
-            SoundManager.shared.playSplash()
         }
     }
 }

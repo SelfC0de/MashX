@@ -12,6 +12,7 @@ struct SettingsView: View {
     @State private var showDeleteConfirm = false
     @State private var deletePassword    = ""
     @State private var expandedCards: Set<String> = []
+    @State private var languageTick      = false
 
     private var accent: Color { themeManager.accent }
 
@@ -31,7 +32,7 @@ struct SettingsView: View {
                 ScrollView(showsIndicators: false) {
                     VStack(spacing: 12) {
                         Spacer().frame(height: 4)
-                        settingsCard(id: "notifications", icon: "bell.fill",       title: "Уведомления") { notificationsContent }
+                        settingsCard(id: "notifications", icon: "bell.fill",       title: "Уведомления и звуки") { notificationsContent }
                         settingsCard(id: "privacy",       icon: "eye.fill",        title: "Приватность")  { privacyContent }
                         settingsCard(id: "security",      icon: "shield.lefthalf.filled", title: "Безопасность") { securityContent }
                         settingsCard(id: "appearance",    icon: "paintpalette.fill", title: "Внешний вид") { appearanceContent }
@@ -58,6 +59,7 @@ struct SettingsView: View {
                 Text("Все данные будут удалены безвозвратно.")
             }
         }
+        .id(languageTick)
     }
 
     // MARK: - Delete confirm sheet
@@ -132,19 +134,20 @@ struct SettingsView: View {
     }
 
     // MARK: - Card contents
+
+    // Уведомления + звуки объединены в одну карточку
     private var notificationsContent: some View {
         VStack(spacing: 0) {
-            toggleRow("Уведомления",        "bell.fill",           $settings.notificationsEnabled)
+            toggleRow("Уведомления",      "bell.fill",           $settings.notificationsEnabled)
             rowDivider()
-            toggleRow("Звуки",              "speaker.wave.2.fill", $settings.soundEnabled)
+            toggleRow("Звуки",            "speaker.wave.2.fill", $settings.soundEnabled)
             rowDivider()
-            toggleRow("Звук приветствия",   "music.note",          $settings.splashSoundEnabled)
+            toggleRow("Звук приветствия", "music.note",          $settings.splashSoundEnabled)
         }.padding(.vertical, 4)
     }
 
     private var privacyContent: some View {
         VStack(spacing: 0) {
-            // Оффлайн режим: вкл (справа) = скрыт, выкл (слева) = онлайн
             HStack(spacing: 14) {
                 accentIcon(settings.offlineMode ? "eye.slash.fill" : "circle.fill")
                 VStack(alignment: .leading, spacing: 2) {
@@ -196,39 +199,29 @@ struct SettingsView: View {
             }
             .buttonStyle(.plain)
             rowDivider()
-            VStack(spacing: 10) {
-                HStack {
-                    accentIcon("textformat.size")
-                    Text("Размер шрифта").font(.system(size: 15)).foregroundColor(Theme.text)
-                    Spacer()
-                    Text(["S", "M", "L"][themeManager.fontSizeIndex])
-                        .font(.system(size: 13, weight: .semibold)).foregroundColor(accent).frame(width: 20)
-                }
-                Slider(value: Binding(
-                    get: { Double(themeManager.fontSizeIndex) },
-                    set: { themeManager.fontSizeIndex = Int($0.rounded()); settings.fontSizeIndex = themeManager.fontSizeIndex }
-                ), in: 0...2, step: 1).tint(accent).padding(.leading, 42)
-            }
-            .padding(.horizontal, 16).padding(.vertical, 12)
-            rowDivider()
             segmentRow("Язык", "globe", ["RU", "EN"], Binding(
                 get: { themeManager.languageIndex },
-                set: { themeManager.languageIndex = $0; settings.languageIndex = $0 }
+                set: { idx in
+                    themeManager.languageIndex = idx
+                    settings.languageIndex = idx
+                    UserDefaults.standard.set(idx, forKey: "language_index")
+                    UserDefaults.standard.synchronize()
+                    languageTick.toggle()
+                }
             ))
         }.padding(.vertical, 4)
     }
 
     private var aiContent: some View {
         VStack(spacing: 0) {
-            toggleRow("Smart Reply AI", "sparkles",     $settings.smartReply)
+            toggleRow("Smart Reply AI", "sparkles",    $settings.smartReply)
             rowDivider()
-            toggleRow("Антиспам",       "shield.fill",  $settings.antispam)
+            toggleRow("Антиспам",       "shield.fill", $settings.antispam)
         }.padding(.vertical, 4)
     }
 
     private var accountContent: some View {
         VStack(spacing: 0) {
-            // Logout
             Button {
                 Task { await auth.logout() }
             } label: {
@@ -245,10 +238,7 @@ struct SettingsView: View {
             }
             .buttonStyle(.plain)
             .disabled(auth.isLoading)
-
             rowDivider()
-
-            // Delete
             Button { showDeleteAlert = true } label: {
                 HStack(spacing: 14) {
                     accentIcon("trash.fill", color: .red)
