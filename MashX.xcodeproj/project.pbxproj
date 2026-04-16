@@ -26,6 +26,10 @@
 		61BA2B4DA7C91CE45A9A6CD7 /* APIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 41ED798BFC7C79B8A17F7B63 /* APIClient.swift */; };
 		E7F57D630B74D0CB0FCD038D /* AuthManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8809EC9FA7AC8A04AC254ECF /* AuthManager.swift */; };
 		FDA2363B1177E778CC812585 /* AuthView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0EF75B6BFA2580A268EAB2B5 /* AuthView.swift */; };
+		E001F001E001F001E001F001 /* message_in.caf in Resources */ = {isa = PBXBuildFile; fileRef = F001E001F001E001F001E001 /* message_in.caf */; };
+		E002F002E002F002E002F002 /* message_out.caf in Resources */ = {isa = PBXBuildFile; fileRef = F002E002F002E002F002E002 /* message_out.caf */; };
+		E003F003E003F003E003F003 /* notification.caf in Resources */ = {isa = PBXBuildFile; fileRef = F003E003F003E003F003E003 /* notification.caf */; };
+		E004F004E004F004E004F004 /* splash.caf in Resources */ = {isa = PBXBuildFile; fileRef = F004E004F004E004F004E004 /* splash.caf */; };
 		C001D001C001D001C001D001 /* WebSocketManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = D001C001D001C001D001C001 /* WebSocketManager.swift */; };
 		C002D002C002D002C002D002 /* Localization.swift in Sources */ = {isa = PBXBuildFile; fileRef = D002C002D002C002D002C002 /* Localization.swift */; };
 		C003D003C003D003C003D003 /* SoundManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = D003C003D003C003D003C003 /* SoundManager.swift */; };
@@ -52,6 +56,10 @@
 		41ED798BFC7C79B8A17F7B63 /* APIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIClient.swift; sourceTree = "<group>"; };
 		8809EC9FA7AC8A04AC254ECF /* AuthManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthManager.swift; sourceTree = "<group>"; };
 		0EF75B6BFA2580A268EAB2B5 /* AuthView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthView.swift; sourceTree = "<group>"; };
+		F001E001F001E001F001E001 /* message_in.caf */ = {isa = PBXFileReference; lastKnownFileType = audio.aiff-core; path = message_in.caf; sourceTree = "<group>"; };
+		F002E002F002E002F002E002 /* message_out.caf */ = {isa = PBXFileReference; lastKnownFileType = audio.aiff-core; path = message_out.caf; sourceTree = "<group>"; };
+		F003E003F003E003F003E003 /* notification.caf */ = {isa = PBXFileReference; lastKnownFileType = audio.aiff-core; path = notification.caf; sourceTree = "<group>"; };
+		F004E004F004E004F004E004 /* splash.caf */ = {isa = PBXFileReference; lastKnownFileType = audio.aiff-core; path = splash.caf; sourceTree = "<group>"; };
 		D001C001D001C001D001C001 /* WebSocketManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebSocketManager.swift; sourceTree = "<group>"; };
 		D002C002D002C002D002C002 /* Localization.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Localization.swift; sourceTree = "<group>"; };
 		D003C003D003C003D003C003 /* SoundManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SoundManager.swift; sourceTree = "<group>"; };
@@ -101,6 +109,10 @@
 				41ED798BFC7C79B8A17F7B63 /* APIClient.swift */,
 				8809EC9FA7AC8A04AC254ECF /* AuthManager.swift */,
 				0EF75B6BFA2580A268EAB2B5 /* AuthView.swift */,
+				F001E001F001E001F001E001 /* message_in.caf */,
+				F002E002F002E002F002E002 /* message_out.caf */,
+				F003E003F003E003F003E003 /* notification.caf */,
+				F004E004F004E004F004E004 /* splash.caf */,
 				D001C001D001C001D001C001 /* WebSocketManager.swift */,
 				D002C002D002C002D002C002 /* Localization.swift */,
 				D003C003D003C003D003C003 /* SoundManager.swift */,
@@ -160,6 +172,10 @@
 			buildActionMask = 2147483647;
 			files = (
 				8B6FDDE27147A4D5C20A99D5 /* Assets.xcassets in Resources */,
+				E001F001E001F001E001F001 /* message_in.caf in Resources */,
+				E002F002E002F002E002F002 /* message_out.caf in Resources */,
+				E003F003E003F003E003F003 /* notification.caf in Resources */,
+				E004F004E004F004E004F004 /* splash.caf in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
