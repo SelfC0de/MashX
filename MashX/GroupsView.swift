@@ -1,22 +1,51 @@
 import SwiftUI
 
-// MARK: - GroupsView
+// MARK: - API Models
+struct APIGroup: Decodable, Identifiable {
+    let id: String
+    let name: String
+    let description: String
+    let avatar_url: String
+    let is_public: Bool
+    let owner_id: String
+    let member_count: Int
+    let created_at: String
+}
+
+struct APIGroupMember: Decodable, Identifiable {
+    let id: String
+    let user_id: String
+    let role: String
+    let user: APIMemberUser?
+
+    struct APIMemberUser: Decodable {
+        let id: String
+        let username: String
+        let display_name: String
+        let avatar_url: String
+        let is_online: Bool
+    }
+}
+
 struct GroupsView: View {
-    @State private var groups       = MockData.groups
-    @State private var publicRooms  = MockData.publicRooms
-    @State private var searchText   = ""
-    @State private var filterIndex  = 0
+    @State private var myGroups:    [APIGroup] = []
+    @State private var publicGroups:[APIGroup] = []
+    @State private var searchText  = ""
+    @State private var filterIndex = 0
     @State private var showDiscover = false
+    @State private var showCreate   = false
+    @State private var isLoading    = false
+
     @EnvironmentObject private var toast: ToastManager
     private let accent = Theme.accentGroups
     private let filters = ["Все", "Мои", "Публичные"]
 
-    private var filtered: [Group] {
-        var list = groups
+    private var filtered: [APIGroup] {
+        var list: [APIGroup]
         switch filterIndex {
-        case 1: list = list.filter { !$0.isPublic }
-        case 2: list = list.filter { $0.isPublic }
-        default: break
+        case 1: list = myGroups
+        case 2: list = publicGroups
+        default: list = myGroups
         }
         guard !searchText.isEmpty else { return list }
         return list.filter { $0.name.lowercased().contains(searchText.lowercased()) }
@@ -28,36 +57,48 @@ struct GroupsView: View {
                 Theme.bg.ignoresSafeArea()
                 VStack(spacing: 0) {
                     headerBar
-                    SearchBar(text: $searchText, accentColor: accent)
-                        .padding(.horizontal, 16).padding(.bottom, 8)
+                    SearchBar(text: $searchText, accentColor: accent).padding(.horizontal, 16).padding(.bottom, 8)
                     filterChips
-                    groupList
+                    if isLoading && myGroups.isEmpty {
+                        Spacer(); ProgressView().tint(accent); Spacer()
+                    } else {
+                        groupList
+                    }
                 }
             }
             .navigationBarHidden(true)
-            .sheet(isPresented: $showDiscover) { DiscoverRoomsView(rooms: publicRooms) }
+            .sheet(isPresented: $showDiscover) { DiscoverRoomsView(accent: accent, onJoined: loadMyGroups) }
+            .sheet(isPresented: $showCreate)   { CreateGroupSheet(accent: accent, onCreated: loadMyGroups) }
+            .task { await loadMyGroups(); await loadPublic() }
+            .refreshable { await loadMyGroups(); await loadPublic() }
         }
+    }
+
+    private func loadMyGroups() async {
+        isLoading = true; defer { isLoading = false }
+        do { myGroups = try await APIClient.shared.request(url: API.Groups.list) }
+        catch { toast.show("Ошибка загрузки групп", style: .error) }
+    }
+
+    private func loadPublic() async {
+        do { publicGroups = try await APIClient.shared.request(url: API.Groups.pub) }
+        catch {}
     }
 
     private var headerBar: some View {
         HStack {
             HStack(spacing: 6) {
                 AnimatedIcon(name: "person.3.fill", size: 17, color: accent)
-                Text("Группы")
-                    .font(.system(size: 22, weight: .bold)).foregroundColor(Theme.text).kerning(-0.5)
+                Text("Группы").font(.system(size: 22, weight: .bold)).foregroundColor(Theme.text).kerning(-0.5)
             }
             Spacer()
             HStack(spacing: 8) {
                 Button { showDiscover = true } label: {
-                    Image(systemName: "safari.fill")
-                        .font(.system(size: 15, weight: .semibold)).foregroundColor(accent)
+                    Image(systemName: "safari.fill").font(.system(size: 15, weight: .semibold)).foregroundColor(accent)
                         .frame(width: 34, height: 34).background(accent.opacity(0.12)).cornerRadius(8)
                 }
-                Button {
-                    toast.show("Создать группу", style: .info, icon: "person.3.fill")
-                } label: {
-                    Image(systemName: "plus")
-                        .font(.system(size: 17, weight: .semibold)).foregroundColor(accent)
+                Button { showCreate = true } label: {
+                    Image(systemName: "plus").font(.system(size: 17, weight: .semibold)).foregroundColor(accent)
                         .frame(width: 34, height: 34).background(accent.opacity(0.12)).cornerRadius(8)
                 }
             }
@@ -82,12 +123,22 @@ struct GroupsView: View {
     private var groupList: some View {
         ScrollView(showsIndicators: false) {
             LazyVStack(spacing: 0) {
-                ForEach(filtered) { group in
-                    NavigationLink(destination: GroupDetailView(group: group)) {
-                        GroupRow(group: group, accent: accent)
+                ForEach(filtered) { g in
+                    NavigationLink(destination: GroupDetailView(group: g, onLeft: loadMyGroups)) {
+                        APIGroupRow(group: g, accent: accent)
                     }
                     .buttonStyle(.plain)
                     Divider().background(Theme.sep).padding(.leading, 72)
+                }
+                if filtered.isEmpty && !isLoading {
+                    VStack(spacing: 12) {
+                        Image(systemName: "person.3").font(.system(size: 32)).foregroundColor(Theme.dim)
+                        Text("Нет групп").font(.system(size: 15)).foregroundColor(Theme.muted)
+                        Button { showCreate = true } label: {
+                            Text("Создать группу").font(.system(size: 14, weight: .semibold)).foregroundColor(accent)
+                        }
+                    }
+                    .frame(maxWidth: .infinity).padding(.top, 60)
                 }
             }
         }
@@ -95,35 +146,24 @@ struct GroupsView: View {
 }
 
 // MARK: - GroupRow
-struct GroupRow: View {
-    let group: Group
+struct APIGroupRow: View {
+    let group: APIGroup
     let accent: Color
-
     var body: some View {
         HStack(spacing: 12) {
-            AvatarView(initials: group.avatarInitials, size: 48, accentColor: accent)
+            AvatarView(initials: String(group.name.prefix(2)).uppercased(), size: 48, accentColor: accent)
             VStack(alignment: .leading, spacing: 3) {
                 HStack {
-                    Text(group.name)
-                        .font(.system(size: 15, weight: .semibold)).foregroundColor(Theme.text).lineLimit(1)
-                    if group.isPublic {
-                        Image(systemName: "globe")
-                            .font(.system(size: 10)).foregroundColor(accent)
-                    }
+                    Text(group.name).font(.system(size: 15, weight: .semibold)).foregroundColor(Theme.text).lineLimit(1)
+                    if group.is_public { Image(systemName: "globe").font(.system(size: 10)).foregroundColor(accent) }
                     Spacer()
-                    Text(group.time).font(.system(size: 12)).foregroundColor(Theme.dim)
                 }
-                HStack {
-                    Text(group.lastMessage)
-                        .font(.system(size: 13)).foregroundColor(Theme.muted).lineLimit(1)
-                    Spacer()
-                    UnreadBadge(count: group.unread, color: accent)
+                HStack(spacing: 3) {
+                    Image(systemName: "person.2.fill").font(.system(size: 9)).foregroundColor(Theme.dim)
+                    Text("\(group.member_count) участников").font(.system(size: 12)).foregroundColor(Theme.muted)
                 }
-                if let thread = group.activeThread {
-                    HStack(spacing: 4) {
-                        Image(systemName: "text.bubble.fill").font(.system(size: 9)).foregroundColor(accent)
-                        Text(thread).font(.system(size: 11)).foregroundColor(accent)
-                    }
+                if !group.description.isEmpty {
+                    Text(group.description).font(.system(size: 12)).foregroundColor(Theme.muted).lineLimit(1)
                 }
             }
         }
@@ -131,17 +171,16 @@ struct GroupRow: View {
     }
 }
 
-// MARK: - GroupDetailView
+// MARK: - Group Detail
 struct GroupDetailView: View {
-    let group: Group
-    @State private var messages   = MockData.messages
-    @State private var poll       = MockData.poll
-    @State private var inputText  = ""
-    @State private var showThread: Message? = nil
+    let group: APIGroup
+    let onLeft: () async -> Void
+    @State private var members: [APIGroupMember] = []
     @State private var showMembers = false
-    @FocusState private var focused: Bool
+    @State private var isLeaving = false
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var toast: ToastManager
+    @EnvironmentObject private var auth: AuthManager
     private let accent = Theme.accentGroups
 
     var body: some View {
@@ -150,256 +189,220 @@ struct GroupDetailView: View {
             VStack(spacing: 0) {
                 navBar
                 ScrollView(showsIndicators: false) {
-                    LazyVStack(spacing: 4) {
-                        PollCard(poll: $poll, accent: accent).padding(.horizontal, 16).padding(.top, 8)
-                        ForEach(messages) { msg in
-                            VStack(alignment: .leading, spacing: 2) {
-                                MessageBubble(message: msg, accent: accent)
-                                if !msg.thread.isEmpty || msg.isOutgoing {
-                                    threadButton(msg)
+                    VStack(spacing: 16) {
+                        // Group info card
+                        VStack(spacing: 10) {
+                            AvatarView(initials: String(group.name.prefix(2)).uppercased(), size: 64, accentColor: accent)
+                            Text(group.name).font(.system(size: 20, weight: .bold)).foregroundColor(Theme.text)
+                            if !group.description.isEmpty {
+                                Text(group.description).font(.system(size: 14)).foregroundColor(Theme.muted)
+                                    .multilineTextAlignment(.center).padding(.horizontal, 24)
+                            }
+                            HStack(spacing: 16) {
+                                Label("\(group.member_count)", systemImage: "person.2.fill")
+                                    .font(.system(size: 13)).foregroundColor(Theme.muted)
+                                if group.is_public {
+                                    Label("Публичная", systemImage: "globe")
+                                        .font(.system(size: 13)).foregroundColor(accent)
                                 }
                             }
                         }
+                        .frame(maxWidth: .infinity).padding(.vertical, 20)
+                        .background(Theme.card).cornerRadius(16)
+                        .overlay(RoundedRectangle(cornerRadius: 16).stroke(Theme.border, lineWidth: 0.5))
+                        .padding(.horizontal, 16).padding(.top, 8)
+
+                        // Members preview
+                        if !members.isEmpty {
+                            VStack(alignment: .leading, spacing: 0) {
+                                SectionHeader(title: "Участники · \(group.member_count)", accentColor: accent)
+                                ForEach(members.prefix(5)) { m in
+                                    memberRow(m)
+                                    Divider().background(Theme.sep).padding(.leading, 60)
+                                }
+                                if group.member_count > 5 {
+                                    Button { showMembers = true } label: {
+                                        Text("Все участники →")
+                                            .font(.system(size: 14)).foregroundColor(accent)
+                                            .padding(.horizontal, 16).padding(.vertical, 12)
+                                    }
+                                    .buttonStyle(.plain)
+                                }
+                            }
+                            .background(Theme.card).cornerRadius(14)
+                            .overlay(RoundedRectangle(cornerRadius: 14).stroke(Theme.border, lineWidth: 0.5))
+                            .padding(.horizontal, 16)
+                        }
+
+                        // Leave button (не для owner)
+                        if group.owner_id != (auth.currentUser?.id ?? "") {
+                            Button {
+                                Task { await leaveGroup() }
+                            } label: {
+                                HStack(spacing: 8) {
+                                    if isLeaving { ProgressView().tint(.red) }
+                                    else {
+                                        Image(systemName: "rectangle.portrait.and.arrow.right").foregroundColor(.red)
+                                        Text("Покинуть группу").foregroundColor(.red)
+                                    }
+                                }
+                                .font(.system(size: 15, weight: .semibold))
+                                .frame(maxWidth: .infinity).frame(height: 50)
+                                .background(Color.red.opacity(0.1)).cornerRadius(14)
+                                .overlay(RoundedRectangle(cornerRadius: 14).stroke(Color.red.opacity(0.3), lineWidth: 0.5))
+                            }
+                            .padding(.horizontal, 16)
+                            .disabled(isLeaving)
+                        }
+
+                        Spacer().frame(height: 80)
                     }
-                    .padding(.horizontal, 16).padding(.bottom, 12)
                 }
-                inputBar
             }
         }
         .navigationBarHidden(true)
-        .toolbar {
-            ToolbarItemGroup(placement: .keyboard) {
-                Spacer()
-                Button("Готово") { focused = false }.foregroundColor(accent).fontWeight(.semibold)
-            }
-        }
-        .sheet(isPresented: $showMembers) { MembersSheet(group: group) }
-        .sheet(item: $showThread) { msg in
-            ThreadView(parentMessage: msg, accent: accent)
+        .sheet(isPresented: $showMembers) { MembersSheetView(group: group, members: members, accent: accent) }
+        .task { await loadMembers() }
+    }
+
+    private func loadMembers() async {
+        do { members = try await APIClient.shared.request(url: API.Groups.members(group.id)) }
+        catch {}
+    }
+
+    private func leaveGroup() async {
+        isLeaving = true; defer { isLeaving = false }
+        do {
+            _ = try await APIClient.shared.request(url: API.Groups.leave(group.id), method: .DELETE) as EmptyResponse
+            await onLeft()
+            toast.show("Вы покинули группу", style: .info)
+            dismiss()
+        } catch APIError.server(let msg) {
+            toast.show(msg, style: .error)
+        } catch {
+            toast.show("Ошибка", style: .error)
         }
     }
 
     private var navBar: some View {
-        HStack(spacing: 10) {
+        HStack {
             Button { dismiss() } label: {
-                Image(systemName: "chevron.left")
-                    .font(.system(size: 17, weight: .semibold)).foregroundColor(accent)
-            }
-            AvatarView(initials: group.avatarInitials, size: 34, accentColor: accent)
-            VStack(alignment: .leading, spacing: 1) {
                 HStack(spacing: 4) {
-                    Text(group.name)
-                        .font(.system(size: 15, weight: .semibold)).foregroundColor(Theme.text)
-                    if group.isPublic {
-                        Image(systemName: "globe").font(.system(size: 10)).foregroundColor(accent)
-                    }
+                    Image(systemName: "chevron.left").font(.system(size: 14, weight: .semibold))
+                    Text("Группы")
                 }
-                Text("\(group.memberCount) участников")
-                    .font(.system(size: 12)).foregroundColor(Theme.muted)
+                .foregroundColor(accent)
             }
             Spacer()
+            Text(group.name).font(.system(size: 16, weight: .semibold)).foregroundColor(Theme.text).lineLimit(1)
+            Spacer()
             Button { showMembers = true } label: {
-                Image(systemName: "person.2.fill")
-                    .font(.system(size: 14)).foregroundColor(accent)
-                    .frame(width: 32, height: 32).background(accent.opacity(0.12)).cornerRadius(8)
+                Image(systemName: "person.2.fill").font(.system(size: 15)).foregroundColor(accent)
             }
         }
-        .padding(.horizontal, 16).padding(.vertical, 10)
+        .padding(.horizontal, 16).padding(.vertical, 12)
         .background(Theme.bgSecond)
         .overlay(Rectangle().frame(height: 0.5).foregroundColor(Theme.border), alignment: .bottom)
     }
 
-    private func threadButton(_ msg: Message) -> some View {
-        Button { showThread = msg } label: {
-            HStack(spacing: 5) {
-                Image(systemName: "text.bubble").font(.system(size: 10)).foregroundColor(accent)
-                Text(msg.thread.isEmpty ? "Ответить в ветке" : "\(msg.thread.count) ответов")
-                    .font(.system(size: 11)).foregroundColor(accent)
-            }
-            .padding(.horizontal, 10).padding(.vertical, 4)
-            .background(accent.opacity(0.08)).cornerRadius(8)
+    private func memberRow(_ m: APIGroupMember) -> some View {
+        let name = m.user?.display_name ?? m.user?.username ?? "User"
+        let initials = String(name.prefix(2)).uppercased()
+        return HStack(spacing: 12) {
+            AvatarView(initials: initials, size: 38, isOnline: m.user?.is_online ?? false)
+            Text(name).font(.system(size: 14)).foregroundColor(Theme.text)
+            Spacer()
+            roleLabel(m.role)
         }
-        .buttonStyle(.plain)
-        .padding(.leading, msg.isOutgoing ? 0 : 16)
-        .frame(maxWidth: .infinity, alignment: msg.isOutgoing ? .trailing : .leading)
+        .padding(.horizontal, 16).padding(.vertical, 8)
     }
 
-    private var inputBar: some View {
-        HStack(spacing: 10) {
-            // @ mention hint
-            if inputText.hasPrefix("@") {
-                Text("@упоминание").font(.system(size: 12)).foregroundColor(accent)
-                    .padding(.horizontal, 8).padding(.vertical, 4)
-                    .background(accent.opacity(0.1)).cornerRadius(8)
+    private func roleLabel(_ role: String) -> some View {
+        let (label, color): (String, Color) = {
+            switch role {
+            case "owner":     return ("Владелец", Color(hex: "#EC4899"))
+            case "admin":     return ("Админ",    Theme.accentProfile)
+            case "moderator": return ("Модер",    Theme.accentChats)
+            default:          return ("Участник", Theme.muted)
             }
-            TextField("Сообщение...", text: $inputText, axis: .vertical)
-                .font(.system(size: 15)).foregroundColor(Theme.text).tint(accent)
-                .focused($focused).lineLimit(1...4)
-                .padding(.horizontal, 12).padding(.vertical, 8)
-                .background(Theme.card).cornerRadius(20)
-                .overlay(RoundedRectangle(cornerRadius: 20)
-                    .stroke(focused ? accent.opacity(0.4) : Theme.border, lineWidth: 0.5))
-            Button {
-                let t = inputText.trimmingCharacters(in: .whitespacesAndNewlines)
-                guard !t.isEmpty else { return }
-                withAnimation { messages.append(Message(text: t, isOutgoing: true, time: "сейчас", status: .sent)) }
-                inputText = ""
-            } label: {
-                Image(systemName: inputText.isEmpty ? "mic.fill" : "arrow.up")
-                    .font(.system(size: 15, weight: .bold)).foregroundColor(.white)
-                    .frame(width: 36, height: 36)
-                    .background(inputText.isEmpty ? Theme.dim : accent)
-                    .clipShape(Circle())
-                    .animation(.spring(response: 0.2), value: inputText.isEmpty)
-            }
-        }
-        .padding(.horizontal, 16).padding(.vertical, 10)
-        .background(Theme.bgSecond.overlay(Rectangle().frame(height: 0.5).foregroundColor(Theme.border), alignment: .top))
-    }
-}
-
-// MARK: - Thread View
-struct ThreadView: View, Identifiable {
-    var id: UUID { parentMessage.id }
-    let parentMessage: Message
-    let accent: Color
-    @State private var replyText = ""
-    @State private var replies: [Message] = []
-    @Environment(\.dismiss) private var dismiss
-    @FocusState private var focused: Bool
-
-    var body: some View {
-        ZStack {
-            Theme.bg.ignoresSafeArea()
-            VStack(spacing: 0) {
-                HStack {
-                    Text("Ветка обсуждения")
-                        .font(.system(size: 17, weight: .bold)).foregroundColor(Theme.text)
-                    Spacer()
-                    Button { dismiss() } label: {
-                        Image(systemName: "xmark.circle.fill").font(.system(size: 22)).foregroundColor(Theme.muted)
-                    }
-                }
-                .padding(.horizontal, 16).padding(.vertical, 14)
-                .background(Theme.bgSecond)
-                .overlay(Rectangle().frame(height: 0.5).foregroundColor(Theme.border), alignment: .bottom)
-
-                ScrollView(showsIndicators: false) {
-                    VStack(spacing: 8) {
-                        MessageBubble(message: parentMessage, accent: accent)
-                            .padding(.top, 8)
-                        if !replies.isEmpty {
-                            Divider().background(Theme.sep).padding(.horizontal, 16)
-                            ForEach(replies) { r in MessageBubble(message: r, accent: accent) }
-                        }
-                    }
-                    .padding(.horizontal, 16)
-                }
-
-                HStack(spacing: 10) {
-                    TextField("Ответить...", text: $replyText)
-                        .font(.system(size: 15)).foregroundColor(Theme.text).tint(accent)
-                        .focused($focused)
-                        .padding(.horizontal, 12).padding(.vertical, 9)
-                        .background(Theme.card).cornerRadius(20)
-                        .overlay(RoundedRectangle(cornerRadius: 20).stroke(accent.opacity(0.3), lineWidth: 0.5))
-                    Button {
-                        let t = replyText.trimmingCharacters(in: .whitespacesAndNewlines)
-                        guard !t.isEmpty else { return }
-                        withAnimation { replies.append(Message(text: t, isOutgoing: true, time: "сейчас", status: .sent)) }
-                        replyText = ""
-                    } label: {
-                        Image(systemName: "arrow.up")
-                            .font(.system(size: 14, weight: .bold)).foregroundColor(.white)
-                            .frame(width: 34, height: 34).background(accent).clipShape(Circle())
-                    }
-                }
-                .padding(.horizontal, 16).padding(.vertical, 10)
-                .background(Theme.bgSecond.overlay(Rectangle().frame(height: 0.5).foregroundColor(Theme.border), alignment: .top))
-            }
-        }
-        .toolbar {
-            ToolbarItemGroup(placement: .keyboard) {
-                Spacer()
-                Button("Готово") { focused = false }.foregroundColor(accent).fontWeight(.semibold)
-            }
-        }
-        .presentationDetents([.large])
+        }()
+        return Text(label)
+            .font(.system(size: 11, weight: .semibold)).foregroundColor(color)
+            .padding(.horizontal, 8).padding(.vertical, 3)
+            .background(color.opacity(0.12)).cornerRadius(6)
     }
 }
 
 // MARK: - Members Sheet
-struct MembersSheet: View {
-    let group: Group
+struct MembersSheetView: View {
+    let group: APIGroup
+    let members: [APIGroupMember]
+    let accent: Color
     @Environment(\.dismiss) private var dismiss
-    private let accent = Theme.accentGroups
-
-    private let roleLabels: [GroupMember.GroupRole: String] = [
-        .owner: "Владелец", .admin: "Админ", .moderator: "Модератор", .member: "Участник"
-    ]
-    private let roleColors: [GroupMember.GroupRole: Color] = [
-        .owner: Color(hex: "#EC4899"), .admin: Theme.accentProfile,
-        .moderator: Theme.accentChats, .member: Theme.muted
-    ]
 
     var body: some View {
         ZStack {
             Theme.bg.ignoresSafeArea()
             VStack(spacing: 0) {
+                Capsule().fill(Theme.dim).frame(width: 36, height: 4).padding(.top, 10).padding(.bottom, 16)
                 HStack {
-                    Text("Участники · \(group.memberCount)")
+                    Text("Участники · \(group.member_count)")
                         .font(.system(size: 18, weight: .bold)).foregroundColor(Theme.text)
                     Spacer()
                     Button { dismiss() } label: {
                         Image(systemName: "xmark.circle.fill").font(.system(size: 22)).foregroundColor(Theme.muted)
                     }
                 }
-                .padding(.horizontal, 20).padding(.vertical, 16)
+                .padding(.horizontal, 20).padding(.bottom, 16)
 
                 ScrollView(showsIndicators: false) {
                     LazyVStack(spacing: 0) {
-                        ForEach(group.members) { member in
+                        ForEach(members) { m in
+                            let name = m.user?.display_name ?? m.user?.username ?? "User"
                             HStack(spacing: 12) {
-                                AvatarView(initials: member.avatarInitials, size: 42)
-                                Text(member.name).font(.system(size: 15)).foregroundColor(Theme.text)
+                                AvatarView(initials: String(name.prefix(2)).uppercased(), size: 42,
+                                           isOnline: m.user?.is_online ?? false)
+                                Text(name).font(.system(size: 15)).foregroundColor(Theme.text)
                                 Spacer()
-                                Text(roleLabels[member.role] ?? "")
-                                    .font(.system(size: 11, weight: .semibold))
-                                    .foregroundColor(roleColors[member.role] ?? Theme.muted)
-                                    .padding(.horizontal, 8).padding(.vertical, 3)
-                                    .background((roleColors[member.role] ?? Theme.muted).opacity(0.12))
-                                    .cornerRadius(6)
+                                roleTag(m.role)
                             }
                             .padding(.horizontal, 20).padding(.vertical, 10)
                             Divider().background(Theme.sep).padding(.leading, 74)
                         }
                     }
                 }
-
-                Button {} label: {
-                    HStack(spacing: 8) {
-                        Image(systemName: "person.badge.plus").font(.system(size: 14)).foregroundColor(accent)
-                        Text("Пригласить участников").font(.system(size: 15)).foregroundColor(accent)
-                    }
-                    .frame(maxWidth: .infinity).padding(.vertical, 13)
-                    .background(accent.opacity(0.1)).cornerRadius(14)
-                }
-                .padding(.horizontal, 20).padding(.bottom, 30)
             }
         }
         .presentationDetents([.medium, .large])
+    }
+
+    private func roleTag(_ role: String) -> some View {
+        let (label, color): (String, Color) = {
+            switch role {
+            case "owner":     return ("Владелец", Color(hex: "#EC4899"))
+            case "admin":     return ("Админ",    Theme.accentProfile)
+            case "moderator": return ("Модер",    Theme.accentChats)
+            default:          return ("Участник", Theme.muted)
+            }
+        }()
+        return Text(label)
+            .font(.system(size: 11, weight: .semibold)).foregroundColor(color)
+            .padding(.horizontal, 8).padding(.vertical, 3)
+            .background(color.opacity(0.12)).cornerRadius(6)
     }
 }
 
 // MARK: - Discover Rooms
 struct DiscoverRoomsView: View {
-    let rooms: [Group]
+    let accent: Color
+    let onJoined: () async -> Void
+    @State private var rooms: [APIGroup] = []
+    @State private var searchText = ""
+    @State private var isLoading = false
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var toast: ToastManager
-    @State private var searchText = ""
-    private let accent = Theme.accentGroups
 
-    private var filtered: [Group] {
+    private var filtered: [APIGroup] {
         guard !searchText.isEmpty else { return rooms }
         return rooms.filter { $0.name.lowercased().contains(searchText.lowercased()) }
     }
@@ -410,10 +413,8 @@ struct DiscoverRoomsView: View {
             VStack(spacing: 0) {
                 HStack {
                     VStack(alignment: .leading, spacing: 2) {
-                        Text("Публичные комнаты")
-                            .font(.system(size: 18, weight: .bold)).foregroundColor(Theme.text)
-                        Text("Открытые группы по темам")
-                            .font(.system(size: 12)).foregroundColor(Theme.muted)
+                        Text("Публичные группы").font(.system(size: 18, weight: .bold)).foregroundColor(Theme.text)
+                        Text("Открытые группы по темам").font(.system(size: 12)).foregroundColor(Theme.muted)
                     }
                     Spacer()
                     Button { dismiss() } label: {
@@ -424,91 +425,141 @@ struct DiscoverRoomsView: View {
 
                 SearchBar(text: $searchText, accentColor: accent).padding(.horizontal, 16).padding(.bottom, 8)
 
-                ScrollView(showsIndicators: false) {
-                    LazyVStack(spacing: 0) {
-                        ForEach(filtered) { room in
-                            HStack(spacing: 12) {
-                                AvatarView(initials: room.avatarInitials, size: 46, accentColor: accent)
-                                VStack(alignment: .leading, spacing: 3) {
-                                    Text(room.name).font(.system(size: 15, weight: .semibold)).foregroundColor(Theme.text)
-                                    Text(room.lastMessage).font(.system(size: 12)).foregroundColor(Theme.muted).lineLimit(1)
-                                    HStack(spacing: 3) {
-                                        Image(systemName: "person.2.fill").font(.system(size: 9)).foregroundColor(Theme.dim)
-                                        Text("\(room.memberCount)").font(.system(size: 11)).foregroundColor(Theme.dim)
+                if isLoading {
+                    Spacer(); ProgressView().tint(accent); Spacer()
+                } else {
+                    ScrollView(showsIndicators: false) {
+                        LazyVStack(spacing: 0) {
+                            ForEach(filtered) { room in
+                                HStack(spacing: 12) {
+                                    AvatarView(initials: String(room.name.prefix(2)).uppercased(), size: 46, accentColor: accent)
+                                    VStack(alignment: .leading, spacing: 3) {
+                                        Text(room.name).font(.system(size: 15, weight: .semibold)).foregroundColor(Theme.text)
+                                        if !room.description.isEmpty {
+                                            Text(room.description).font(.system(size: 12)).foregroundColor(Theme.muted).lineLimit(1)
+                                        }
+                                        HStack(spacing: 3) {
+                                            Image(systemName: "person.2.fill").font(.system(size: 9)).foregroundColor(Theme.dim)
+                                            Text("\(room.member_count)").font(.system(size: 11)).foregroundColor(Theme.dim)
+                                        }
                                     }
+                                    Spacer()
+                                    Button { Task { await joinGroup(room) } } label: {
+                                        Text("Вступить")
+                                            .font(.system(size: 12, weight: .semibold)).foregroundColor(accent)
+                                            .padding(.horizontal, 10).padding(.vertical, 6)
+                                            .background(accent.opacity(0.12)).cornerRadius(8)
+                                            .overlay(RoundedRectangle(cornerRadius: 8).stroke(accent.opacity(0.3), lineWidth: 0.5))
+                                    }
+                                    .buttonStyle(.plain)
                                 }
-                                Spacer()
-                                Button { toast.show("Вступил в \(room.name)", style: .success) } label: {
-                                    Text("Вступить")
-                                        .font(.system(size: 12, weight: .semibold)).foregroundColor(accent)
-                                        .padding(.horizontal, 10).padding(.vertical, 6)
-                                        .background(accent.opacity(0.12)).cornerRadius(8)
-                                        .overlay(RoundedRectangle(cornerRadius: 8).stroke(accent.opacity(0.3), lineWidth: 0.5))
-                                }
-                                .buttonStyle(.plain)
+                                .padding(.horizontal, 20).padding(.vertical, 10)
+                                Divider().background(Theme.sep).padding(.leading, 78)
                             }
-                            .padding(.horizontal, 20).padding(.vertical, 10)
-                            Divider().background(Theme.sep).padding(.leading, 78)
                         }
                     }
                 }
             }
         }
         .presentationDetents([.large])
+        .task { await loadPublic() }
+    }
+
+    private func loadPublic() async {
+        isLoading = true; defer { isLoading = false }
+        do {
+            let q = searchText.isEmpty ? "" : "?q=\(searchText)"
+            rooms = try await APIClient.shared.request(url: API.Groups.pub + q)
+        } catch {}
+    }
+
+    private func joinGroup(_ g: APIGroup) async {
+        do {
+            _ = try await APIClient.shared.request(url: API.Groups.join(g.id), method: .POST) as EmptyResponse
+            await onJoined()
+            toast.show("Вы вступили в \(g.name)", style: .success)
+            dismiss()
+        } catch APIError.server(let msg) {
+            toast.show(msg, style: .error)
+        } catch { toast.show("Ошибка", style: .error) }
     }
 }
 
-// MARK: - Poll Card
-struct PollCard: View {
-    @Binding var poll: Poll
+// MARK: - Create Group Sheet
+struct CreateGroupSheet: View {
     let accent: Color
+    let onCreated: () async -> Void
+    @State private var name = ""
+    @State private var description = ""
+    @State private var isPublic = false
+    @State private var isLoading = false
+    @State private var errorMsg: String?
+    @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject private var toast: ToastManager
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 6) {
-                Image(systemName: "chart.bar.fill").font(.system(size: 12)).foregroundColor(accent)
-                Text("Голосование").font(.system(size: 11, weight: .semibold)).foregroundColor(accent)
-                Spacer()
-                Text("\(poll.totalVotes) голосов").font(.system(size: 11)).foregroundColor(Theme.dim)
-            }
-            Text(poll.question).font(.system(size: 15, weight: .semibold)).foregroundColor(Theme.text)
-            ForEach(poll.options.indices, id: \.self) { i in
-                let (option, votes) = poll.options[i]
-                let pct = poll.totalVotes > 0 ? Double(votes) / Double(poll.totalVotes) : 0
-                let isVoted = poll.userVote == i
-                Button {
-                    guard poll.userVote == nil else { return }
-                    poll = Poll(id: poll.id, question: poll.question,
-                                options: poll.options.enumerated().map { j, o in j == i ? (o.0, o.1+1) : o },
-                                totalVotes: poll.totalVotes + 1, userVote: i)
-                } label: {
-                    VStack(alignment: .leading, spacing: 5) {
-                        HStack {
-                            if isVoted {
-                                Image(systemName: "checkmark.circle.fill")
-                                    .font(.system(size: 12)).foregroundColor(accent)
-                            }
-                            Text(option).font(.system(size: 14)).foregroundColor(Theme.text)
-                            Spacer()
-                            Text("\(Int(pct * 100))%").font(.system(size: 12, weight: .semibold)).foregroundColor(accent)
-                        }
-                        GeometryReader { geo in
-                            ZStack(alignment: .leading) {
-                                RoundedRectangle(cornerRadius: 3).fill(Theme.sep).frame(height: 5)
-                                RoundedRectangle(cornerRadius: 3)
-                                    .fill(isVoted ? accent : accent.opacity(0.4))
-                                    .frame(width: max(5, geo.size.width * pct), height: 5)
-                                    .animation(.spring(response: 0.5, dampingFraction: 0.8), value: pct)
-                            }
-                        }
-                        .frame(height: 5)
+        ZStack {
+            Theme.bg.ignoresSafeArea()
+            VStack(spacing: 20) {
+                Capsule().fill(Theme.dim).frame(width: 36, height: 4).padding(.top, 10)
+                Text("Создать группу").font(.system(size: 18, weight: .bold)).foregroundColor(Theme.text)
+
+                VStack(spacing: 12) {
+                    fieldView("Название группы", placeholder: "Введите название", text: $name)
+                    fieldView("Описание (необязательно)", placeholder: "О чём группа?", text: $description)
+
+                    HStack {
+                        Text("Публичная группа").font(.system(size: 15)).foregroundColor(Theme.text)
+                        Spacer()
+                        Toggle("", isOn: $isPublic).tint(accent).labelsHidden()
                     }
+                    .padding(12).background(Theme.card).cornerRadius(12)
+                    .overlay(RoundedRectangle(cornerRadius: 12).stroke(Theme.border, lineWidth: 0.5))
                 }
-                .buttonStyle(.plain)
+                .padding(.horizontal, 24)
+
+                if let e = errorMsg {
+                    Text(e).font(.system(size: 13)).foregroundColor(.red).padding(.horizontal, 24)
+                }
+
+                Button { Task { await createGroup() } } label: {
+                    ZStack {
+                        if isLoading { ProgressView().tint(.white) }
+                        else { Text("Создать").font(.system(size: 16, weight: .semibold)).foregroundColor(.white) }
+                    }
+                    .frame(maxWidth: .infinity).frame(height: 50)
+                    .background(name.count >= 2 ? accent : Theme.dim).cornerRadius(14)
+                }
+                .disabled(name.count < 2 || isLoading)
+                .padding(.horizontal, 24)
+
+                Spacer()
             }
         }
-        .padding(14)
-        .background(Theme.card).cornerRadius(14)
-        .overlay(RoundedRectangle(cornerRadius: 14).stroke(accent.opacity(0.2), lineWidth: 0.5))
+        .presentationDetents([.medium])
+    }
+
+    private func fieldView(_ label: String, placeholder: String, text: Binding<String>) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(label).font(.system(size: 13)).foregroundColor(Theme.muted)
+            TextField(placeholder, text: text)
+                .foregroundColor(Theme.text).tint(accent)
+                .padding(12).background(Theme.card).cornerRadius(12)
+                .overlay(RoundedRectangle(cornerRadius: 12).stroke(Theme.border, lineWidth: 0.5))
+        }
+    }
+
+    private func createGroup() async {
+        isLoading = true; errorMsg = nil; defer { isLoading = false }
+        struct CreateReq: Encodable { let name: String; let description: String; let is_public: Bool }
+        do {
+            _ = try await APIClient.shared.request(
+                url: API.Groups.list, method: .POST,
+                body: CreateReq(name: name, description: description, is_public: isPublic)) as EmptyResponse
+            await onCreated()
+            toast.show("Группа создана", style: .success)
+            dismiss()
+        } catch APIError.server(let msg) { errorMsg = msg }
+        catch { errorMsg = error.localizedDescription }
     }
 }

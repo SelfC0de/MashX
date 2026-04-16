@@ -1,16 +1,15 @@
 import SwiftUI
 
-// MARK: - SettingsView
 struct SettingsView: View {
     @EnvironmentObject private var settings: SettingsStore
     @EnvironmentObject private var toast: ToastManager
+    @EnvironmentObject private var auth: AuthManager
 
-    @State private var showSessions     = false
-    @State private var showAccentPicker = false
-    @State private var showDeleteAlert  = false
-    @State private var deleteConfirm    = false
-
-    // Expanded state per card
+    @State private var showSessions      = false
+    @State private var showAccentPicker  = false
+    @State private var showDeleteAlert   = false
+    @State private var showDeleteConfirm = false
+    @State private var deletePassword    = ""
     @State private var expandedCards: Set<String> = []
 
     private let accent = Theme.accentProfile
@@ -31,24 +30,12 @@ struct SettingsView: View {
                 ScrollView(showsIndicators: false) {
                     VStack(spacing: 12) {
                         Spacer().frame(height: 4)
-                        settingsCard(id: "notifications", icon: "bell.fill", title: "Уведомления") {
-                            notificationsContent
-                        }
-                        settingsCard(id: "privacy", icon: "eye.fill", title: "Приватность") {
-                            privacyContent
-                        }
-                        settingsCard(id: "security", icon: "shield.lefthalf.filled", title: "Безопасность") {
-                            securityContent
-                        }
-                        settingsCard(id: "appearance", icon: "paintpalette.fill", title: "Внешний вид") {
-                            appearanceContent
-                        }
-                        settingsCard(id: "ai", icon: "sparkles", title: "AI и Автоматизация") {
-                            aiContent
-                        }
-                        settingsCard(id: "account", icon: "person.crop.circle.badge.exclamationmark", title: "Аккаунт") {
-                            accountContent
-                        }
+                        settingsCard(id: "notifications", icon: "bell.fill",       title: "Уведомления") { notificationsContent }
+                        settingsCard(id: "privacy",       icon: "eye.fill",        title: "Приватность")  { privacyContent }
+                        settingsCard(id: "security",      icon: "shield.lefthalf.filled", title: "Безопасность") { securityContent }
+                        settingsCard(id: "appearance",    icon: "paintpalette.fill", title: "Внешний вид") { appearanceContent }
+                        settingsCard(id: "ai",            icon: "sparkles",        title: "AI и Автоматизация") { aiContent }
+                        settingsCard(id: "account",       icon: "person.crop.circle.badge.exclamationmark", title: "Аккаунт") { accountContent }
                         Spacer().frame(height: 100)
                     }
                     .padding(.horizontal, 16)
@@ -57,214 +44,202 @@ struct SettingsView: View {
             .navigationBarHidden(true)
             .sheet(isPresented: $showSessions)     { SessionsView() }
             .sheet(isPresented: $showAccentPicker) { AccentPickerSheet(presets: accentPresets, current: $settings.accentIndex) }
+            .sheet(isPresented: $showDeleteConfirm) { deleteConfirmSheet }
             .alert("Удалить аккаунт?", isPresented: $showDeleteAlert) {
                 Button("Отмена", role: .cancel) {}
-                Button("Удалить", role: .destructive) {
-                    toast.show("Аккаунт удалён", style: .error, icon: "trash.fill")
-                }
+                Button("Удалить", role: .destructive) { showDeleteConfirm = true }
             } message: {
-                Text("Все данные будут удалены безвозвратно. Это действие нельзя отменить.")
+                Text("Все данные будут удалены безвозвратно.")
             }
         }
     }
 
+    // MARK: - Delete confirm sheet
+    private var deleteConfirmSheet: some View {
+        ZStack {
+            Theme.bg.ignoresSafeArea()
+            VStack(spacing: 20) {
+                Capsule().fill(Theme.dim).frame(width: 36, height: 4).padding(.top, 10)
+                Image(systemName: "trash.fill").font(.system(size: 36)).foregroundColor(.red)
+                    .frame(width: 72, height: 72).background(Color.red.opacity(0.12)).cornerRadius(20)
+                Text("Подтвердите удаление").font(.system(size: 18, weight: .bold)).foregroundColor(Theme.text)
+                Text("Введите пароль для подтверждения").font(.system(size: 14)).foregroundColor(Theme.muted)
+
+                SecureField("Пароль", text: $deletePassword)
+                    .foregroundColor(Theme.text).tint(.red)
+                    .padding(12).background(Theme.card).cornerRadius(12)
+                    .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.red.opacity(0.3), lineWidth: 0.5))
+                    .padding(.horizontal, 24)
+
+                if let err = auth.errorMessage {
+                    Text(err).font(.system(size: 13)).foregroundColor(.red).padding(.horizontal, 24)
+                }
+
+                Button {
+                    Task {
+                        let ok = await auth.deleteAccount(password: deletePassword)
+                        if !ok { deletePassword = "" }
+                    }
+                } label: {
+                    ZStack {
+                        if auth.isLoading { ProgressView().tint(.white) }
+                        else { Text("Удалить аккаунт").font(.system(size: 16, weight: .semibold)).foregroundColor(.white) }
+                    }
+                    .frame(maxWidth: .infinity).frame(height: 50)
+                    .background(Color.red).cornerRadius(14)
+                }
+                .disabled(deletePassword.isEmpty || auth.isLoading)
+                .padding(.horizontal, 24)
+                Spacer()
+            }
+        }
+        .presentationDetents([.medium])
+    }
+
     // MARK: - Card builder
     private func settingsCard<Content: View>(
-        id: String,
-        icon: String,
-        title: String,
+        id: String, icon: String, title: String,
         @ViewBuilder content: () -> Content
     ) -> some View {
         let isExpanded = expandedCards.contains(id)
         return VStack(spacing: 0) {
             Button {
                 withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                    if isExpanded { expandedCards.remove(id) }
-                    else { expandedCards.insert(id) }
+                    if isExpanded { expandedCards.remove(id) } else { expandedCards.insert(id) }
                 }
             } label: {
                 HStack(spacing: 12) {
-                    Image(systemName: icon)
-                        .font(.system(size: 13))
-                        .foregroundColor(accent)
-                        .frame(width: 28, height: 28)
-                        .background(accent.opacity(0.14))
-                        .cornerRadius(7)
-                    Text(title)
-                        .font(.system(size: 15, weight: .semibold))
-                        .foregroundColor(Theme.text)
+                    Image(systemName: icon).font(.system(size: 13)).foregroundColor(accent)
+                        .frame(width: 28, height: 28).background(accent.opacity(0.14)).cornerRadius(7)
+                    Text(title).font(.system(size: 15, weight: .semibold)).foregroundColor(Theme.text)
                     Spacer()
-                    Image(systemName: "chevron.right")
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundColor(Theme.dim)
+                    Image(systemName: "chevron.right").font(.system(size: 11, weight: .semibold)).foregroundColor(Theme.dim)
                         .rotationEffect(.degrees(isExpanded ? 90 : 0))
                 }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 14)
+                .padding(.horizontal, 16).padding(.vertical, 14)
             }
             .buttonStyle(.plain)
-
-            if isExpanded {
-                Divider().background(Theme.sep)
-                content()
-            }
+            if isExpanded { Divider().background(Theme.sep); content() }
         }
-        .background(Theme.card)
-        .cornerRadius(14)
+        .background(Theme.card).cornerRadius(14)
         .overlay(RoundedRectangle(cornerRadius: 14).stroke(Theme.border, lineWidth: 0.5))
     }
 
-    // MARK: - Notifications content
+    // MARK: - Card contents
     private var notificationsContent: some View {
         VStack(spacing: 0) {
-            toggleRow("Уведомления",        "bell.fill",            $settings.notificationsEnabled)
+            toggleRow("Уведомления", "bell.fill",           $settings.notificationsEnabled)
             rowDivider()
-            toggleRow("Звуки",              "speaker.wave.2.fill",  $settings.soundEnabled)
-        }
-        .padding(.vertical, 4)
+            toggleRow("Звуки",      "speaker.wave.2.fill",  $settings.soundEnabled)
+        }.padding(.vertical, 4)
     }
 
-    // MARK: - Privacy content
     private var privacyContent: some View {
         VStack(spacing: 0) {
-            toggleRow("Статус онлайн",      "circle.fill",          $settings.showOnlineStatus)
+            toggleRow("Статус онлайн",     "circle.fill",                       $settings.showOnlineStatus)
             rowDivider()
-            toggleRow("Оффлайн режим",      "eye.slash.fill",       $settings.offlineMode)
+            toggleRow("Оффлайн режим",     "eye.slash.fill",                    $settings.offlineMode)
             rowDivider()
-            toggleRow("Отчёт о прочтении",  "checkmark.circle.fill",$settings.sendReadReceipts)
+            toggleRow("Отчёт о прочтении", "checkmark.circle.fill",             $settings.sendReadReceipts)
             rowDivider()
-            toggleRow("Proximity Ping",     "antenna.radiowaves.left.and.right", $settings.proximityPing)
-        }
-        .padding(.vertical, 4)
+            toggleRow("Proximity Ping",    "antenna.radiowaves.left.and.right", $settings.proximityPing)
+        }.padding(.vertical, 4)
     }
 
-    // MARK: - Security content
     private var securityContent: some View {
         VStack(spacing: 0) {
             segmentRow("Авто-удаление", "timer", ["Выкл", "1ч", "24ч", "7д"], $settings.autoDeleteIndex)
             rowDivider()
-            arrowRow(icon: "iphone.and.arrow.forward", label: "Активные сессии",
-                     value: "2 устройства") { showSessions = true }
-        }
-        .padding(.vertical, 4)
+            arrowRow(icon: "iphone.and.arrow.forward", label: "Активные сессии", value: "") { showSessions = true }
+        }.padding(.vertical, 4)
     }
 
-    // MARK: - Appearance content
     private var appearanceContent: some View {
         VStack(spacing: 0) {
             Button { showAccentPicker = true } label: {
                 HStack(spacing: 14) {
                     accentIcon("paintbrush.fill")
-                    Text("Акцентный цвет")
-                        .font(.system(size: 15)).foregroundColor(Theme.text)
+                    Text("Акцентный цвет").font(.system(size: 15)).foregroundColor(Theme.text)
                     Spacer()
                     HStack(spacing: 4) {
                         Circle().fill(accentPresets[settings.accentIndex].1).frame(width: 16, height: 16)
-                        Text(accentPresets[settings.accentIndex].0)
-                            .font(.system(size: 13)).foregroundColor(Theme.muted)
-                        Image(systemName: "chevron.right")
-                            .font(.system(size: 11)).foregroundColor(Theme.dim)
+                        Text(accentPresets[settings.accentIndex].0).font(.system(size: 13)).foregroundColor(Theme.muted)
+                        Image(systemName: "chevron.right").font(.system(size: 11)).foregroundColor(Theme.dim)
                     }
                 }
                 .padding(.horizontal, 16).padding(.vertical, 12)
             }
             .buttonStyle(.plain)
-
             rowDivider()
-
             VStack(spacing: 10) {
                 HStack {
                     accentIcon("textformat.size")
-                    Text("Размер шрифта")
-                        .font(.system(size: 15)).foregroundColor(Theme.text)
+                    Text("Размер шрифта").font(.system(size: 15)).foregroundColor(Theme.text)
                     Spacer()
                     Text(["S", "M", "L"][settings.fontSizeIndex])
-                        .font(.system(size: 13, weight: .semibold)).foregroundColor(accent)
-                        .frame(width: 20)
+                        .font(.system(size: 13, weight: .semibold)).foregroundColor(accent).frame(width: 20)
                 }
                 Slider(value: Binding(
                     get: { Double(settings.fontSizeIndex) },
                     set: { settings.fontSizeIndex = Int($0.rounded()) }
-                ), in: 0...2, step: 1)
-                .tint(accent)
-                .padding(.leading, 42)
+                ), in: 0...2, step: 1).tint(accent).padding(.leading, 42)
             }
             .padding(.horizontal, 16).padding(.vertical, 12)
-
             rowDivider()
-
             segmentRow("Язык", "globe", ["RU", "EN"], $settings.languageIndex)
-        }
-        .padding(.vertical, 4)
+        }.padding(.vertical, 4)
     }
 
-    // MARK: - AI content
     private var aiContent: some View {
         VStack(spacing: 0) {
-            toggleRow("Smart Reply AI",     "sparkles",             $settings.smartReply)
+            toggleRow("Smart Reply AI", "sparkles",     $settings.smartReply)
             rowDivider()
-            toggleRow("Антиспам",           "shield.fill",          $settings.antispam)
-        }
-        .padding(.vertical, 4)
+            toggleRow("Антиспам",       "shield.fill",  $settings.antispam)
+        }.padding(.vertical, 4)
     }
 
-    // MARK: - Account content
     private var accountContent: some View {
         VStack(spacing: 0) {
+            // Logout
             Button {
-                toast.show("Выход выполнен", style: .error, icon: "rectangle.portrait.and.arrow.right")
+                Task { await auth.logout() }
             } label: {
                 HStack(spacing: 14) {
                     accentIcon("rectangle.portrait.and.arrow.right", color: .red)
-                    Text("Выйти из аккаунта").font(.system(size: 15)).foregroundColor(.red)
+                    if auth.isLoading {
+                        ProgressView().tint(.red)
+                    } else {
+                        Text("Выйти из аккаунта").font(.system(size: 15)).foregroundColor(.red)
+                    }
                     Spacer()
                 }
                 .padding(.horizontal, 16).padding(.vertical, 12)
             }
             .buttonStyle(.plain)
+            .disabled(auth.isLoading)
 
             rowDivider()
 
-            Button {
-                if !deleteConfirm {
-                    deleteConfirm = true
-                    toast.show("Нажмите ещё раз для подтверждения", style: .warning, icon: "exclamationmark.triangle.fill")
-                } else {
-                    showDeleteAlert = true
-                    deleteConfirm = false
-                }
-            } label: {
+            // Delete
+            Button { showDeleteAlert = true } label: {
                 HStack(spacing: 14) {
                     accentIcon("trash.fill", color: .red)
                     Text("Удалить аккаунт").font(.system(size: 15)).foregroundColor(.red)
                     Spacer()
-                    if deleteConfirm {
-                        Text("Подтвердить")
-                            .font(.system(size: 12, weight: .semibold)).foregroundColor(.white)
-                            .padding(.horizontal, 8).padding(.vertical, 4)
-                            .background(Color.red).cornerRadius(6)
-                    }
                 }
                 .padding(.horizontal, 16).padding(.vertical, 12)
             }
             .buttonStyle(.plain)
-        }
-        .padding(.vertical, 4)
+        }.padding(.vertical, 4)
     }
 
     // MARK: - Helpers
-    private func rowDivider() -> some View {
-        Divider().background(Theme.sep).padding(.leading, 58)
-    }
+    private func rowDivider() -> some View { Divider().background(Theme.sep).padding(.leading, 58) }
 
     private func accentIcon(_ name: String, color: Color? = nil) -> some View {
         let c = color ?? accent
-        return Image(systemName: name)
-            .font(.system(size: 13))
-            .foregroundColor(c)
-            .frame(width: 28, height: 28)
-            .background(c.opacity(0.14))
-            .cornerRadius(7)
+        return Image(systemName: name).font(.system(size: 13)).foregroundColor(c)
+            .frame(width: 28, height: 28).background(c.opacity(0.14)).cornerRadius(7)
     }
 
     private func toggleRow(_ label: String, _ icon: String, _ binding: Binding<Bool>) -> some View {
@@ -297,8 +272,7 @@ struct SettingsView: View {
                     .buttonStyle(.plain)
                 }
             }
-            .background(Theme.card)
-            .cornerRadius(8)
+            .background(Theme.card).cornerRadius(8)
             .overlay(RoundedRectangle(cornerRadius: 8).stroke(Theme.border, lineWidth: 0.5))
         }
         .padding(.horizontal, 16).padding(.vertical, 10)
@@ -310,7 +284,7 @@ struct SettingsView: View {
                 accentIcon(icon)
                 Text(label).font(.system(size: 15)).foregroundColor(Theme.text)
                 Spacer()
-                Text(value).font(.system(size: 13)).foregroundColor(accent)
+                if !value.isEmpty { Text(value).font(.system(size: 13)).foregroundColor(accent) }
                 Image(systemName: "chevron.right").font(.system(size: 11)).foregroundColor(Theme.dim)
             }
             .padding(.horizontal, 16).padding(.vertical, 12)

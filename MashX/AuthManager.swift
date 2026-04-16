@@ -24,6 +24,10 @@ struct RecoverRequest: Encodable {
     let new_password: String
 }
 
+struct DeleteAccountRequest: Encodable {
+    let password: String
+}
+
 struct AuthResponse: Decodable {
     let user: APIUser
     let access_token: String
@@ -50,14 +54,8 @@ struct APIUser: Decodable {
     let language_index: Int
 }
 
-// MARK: - AuthState
-enum AuthState {
-    case splash
-    case unauthenticated
-    case authenticated
-}
+enum AuthState { case splash, unauthenticated, authenticated }
 
-// MARK: - AuthManager
 @MainActor
 final class AuthManager: ObservableObject {
     static let shared = AuthManager()
@@ -70,13 +68,11 @@ final class AuthManager: ObservableObject {
 
     private init() {}
 
-    // MARK: - Auto login at launch
     func checkSession() async {
         guard let token = KeychainService.load(key: "access_token") else {
-            state = .unauthenticated
-            return
+            state = .unauthenticated; return
         }
-
+        _ = token
         do {
             let user: APIUser = try await APIClient.shared.request(url: API.User.me)
             currentUser = user
@@ -91,20 +87,13 @@ final class AuthManager: ObservableObject {
 
     private func tryRefresh() async {
         guard let refresh = KeychainService.load(key: "refresh_token") else {
-            state = .unauthenticated
-            return
+            state = .unauthenticated; return
         }
         do {
-            struct RefreshResp: Decodable {
-                let access_token: String
-                let refresh_token: String
-            }
+            struct RefreshResp: Decodable { let access_token: String; let refresh_token: String }
             let resp: RefreshResp = try await APIClient.shared.request(
-                url: API.Auth.refresh,
-                method: .POST,
-                body: RefreshRequest(refresh_token: refresh),
-                auth: false
-            )
+                url: API.Auth.refresh, method: .POST,
+                body: RefreshRequest(refresh_token: refresh), auth: false)
             KeychainService.save(resp.access_token,  key: "access_token")
             KeychainService.save(resp.refresh_token, key: "refresh_token")
             await checkSession()
@@ -114,113 +103,90 @@ final class AuthManager: ObservableObject {
         }
     }
 
-    // MARK: - Register
     func register(username: String, displayName: String, password: String) async {
-        isLoading = true
-        errorMessage = nil
+        isLoading = true; errorMessage = nil
         defer { isLoading = false }
-
-        let req = RegisterRequest(
-            username: username.lowercased().trimmingCharacters(in: .whitespaces),
-            display_name: displayName.trimmingCharacters(in: .whitespaces),
-            password: password
-        )
-
         do {
             let resp: AuthResponse = try await APIClient.shared.request(
-                url: API.Auth.register,
-                method: .POST,
-                body: req,
-                auth: false
-            )
+                url: API.Auth.register, method: .POST,
+                body: RegisterRequest(
+                    username: username.lowercased().trimmingCharacters(in: .whitespaces),
+                    display_name: displayName.trimmingCharacters(in: .whitespaces),
+                    password: password),
+                auth: false)
             saveSession(resp)
             recoveryCode = resp.recovery_code
             currentUser = resp.user
             syncSettings(from: resp.user)
             state = .authenticated
-        } catch {
-            errorMessage = error.localizedDescription
-        }
+        } catch { errorMessage = error.localizedDescription }
     }
 
-    // MARK: - Login
     func login(username: String, password: String) async {
-        isLoading = true
-        errorMessage = nil
+        isLoading = true; errorMessage = nil
         defer { isLoading = false }
-
-        let req = LoginRequest(
-            username: username.lowercased().trimmingCharacters(in: .whitespaces),
-            password: password,
-            device_name: UIDevice.current.name,
-            device_os: "iOS \(UIDevice.current.systemVersion)"
-        )
-
         do {
             let resp: AuthResponse = try await APIClient.shared.request(
-                url: API.Auth.login,
-                method: .POST,
-                body: req,
-                auth: false
-            )
+                url: API.Auth.login, method: .POST,
+                body: LoginRequest(
+                    username: username.lowercased().trimmingCharacters(in: .whitespaces),
+                    password: password,
+                    device_name: UIDevice.current.name,
+                    device_os: "iOS \(UIDevice.current.systemVersion)"),
+                auth: false)
             saveSession(resp)
             currentUser = resp.user
             syncSettings(from: resp.user)
             state = .authenticated
-        } catch {
-            errorMessage = error.localizedDescription
-        }
+        } catch { errorMessage = error.localizedDescription }
     }
 
-    // MARK: - Recover
     func recover(username: String, code: String, newPassword: String) async -> Bool {
-        isLoading = true
-        errorMessage = nil
+        isLoading = true; errorMessage = nil
         defer { isLoading = false }
-
-        struct RecoverResp: Decodable {
-            let message: String
-            let new_recovery_code: String
-        }
-
+        struct RecoverResp: Decodable { let message: String; let new_recovery_code: String }
         do {
             let resp: RecoverResp = try await APIClient.shared.request(
-                url: API.Auth.recover,
-                method: .POST,
-                body: RecoverRequest(
-                    username: username.lowercased(),
-                    recovery_code: code,
-                    new_password: newPassword
-                ),
-                auth: false
-            )
+                url: API.Auth.recover, method: .POST,
+                body: RecoverRequest(username: username.lowercased(), recovery_code: code, new_password: newPassword),
+                auth: false)
             recoveryCode = resp.new_recovery_code
             return true
-        } catch {
-            errorMessage = error.localizedDescription
-            return false
-        }
+        } catch { errorMessage = error.localizedDescription; return false }
     }
 
-    // MARK: - Logout
     func logout() async {
         let refresh = KeychainService.load(key: "refresh_token") ?? ""
         _ = try? await APIClient.shared.request(
-            url: API.Auth.logout,
-            method: .POST,
-            body: RefreshRequest(refresh_token: refresh)
-        ) as EmptyResponse
+            url: API.Auth.logout, method: .POST,
+            body: RefreshRequest(refresh_token: refresh)) as EmptyResponse
+        clearSession()
+    }
+
+    func deleteAccount(password: String) async -> Bool {
+        isLoading = true; errorMessage = nil
+        defer { isLoading = false }
+        do {
+            _ = try await APIClient.shared.request(
+                url: API.User.me, method: .DELETE,
+                body: DeleteAccountRequest(password: password)) as EmptyResponse
+            clearSession()
+            return true
+        } catch { errorMessage = error.localizedDescription; return false }
+    }
+
+    private func clearSession() {
         KeychainService.clear()
         currentUser = nil
+        recoveryCode = nil
         state = .unauthenticated
     }
 
-    // MARK: - Helpers
     private func saveSession(_ resp: AuthResponse) {
-        KeychainService.save(resp.access_token,   key: "access_token")
-        KeychainService.save(resp.refresh_token,  key: "refresh_token")
-        KeychainService.save(resp.user.id,        key: "user_id")
-        KeychainService.save(resp.user.username,  key: "username")
+        KeychainService.save(resp.access_token,  key: "access_token")
+        KeychainService.save(resp.refresh_token, key: "refresh_token")
+        KeychainService.save(resp.user.id,       key: "user_id")
+        KeychainService.save(resp.user.username, key: "username")
     }
 
     private func syncSettings(from user: APIUser) {
