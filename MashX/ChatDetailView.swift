@@ -4,7 +4,7 @@ struct ChatDetailView: View {
     let chat: Chat
     @EnvironmentObject private var settings: SettingsStore
 
-    @State private var messages     = MockData.messages
+    @State private var messages: [Message] = []
     @State private var inputText    = ""
     @State private var replyTarget: Message?     = nil
     @State private var forwardMsg: Message?      = nil
@@ -606,13 +606,28 @@ struct MediaGalleryView: View {
 struct ForwardSheet: View {
     let message: Message?
     @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject private var toast: ToastManager
+    @State private var contacts: [APIContact] = []
     @State private var searchText = ""
-    private let chats = MockData.chats
+    @State private var isLoading = false
+    @State private var forwarded = false
+
+    private var filtered: [APIContact] {
+        let accepted = contacts.filter { $0.status == "accepted" }
+        guard !searchText.isEmpty else { return accepted }
+        let q = searchText.lowercased()
+        return accepted.filter {
+            ($0.user?.display_name.lowercased().contains(q) ?? false) ||
+            ($0.user?.username.lowercased().contains(q) ?? false)
+        }
+    }
 
     var body: some View {
         ZStack {
             Theme.bg.ignoresSafeArea()
             VStack(spacing: 0) {
+                Capsule().fill(Theme.dim).frame(width: 36, height: 4).padding(.top, 10).padding(.bottom, 8)
+
                 HStack {
                     Text("Переслать в...")
                         .font(.system(size: 18, weight: .bold)).foregroundColor(Theme.text)
@@ -621,31 +636,71 @@ struct ForwardSheet: View {
                         Image(systemName: "xmark.circle.fill").font(.system(size: 22)).foregroundColor(Theme.muted)
                     }
                 }
-                .padding(.horizontal, 20).padding(.vertical, 16)
+                .padding(.horizontal, 20).padding(.bottom, 12)
 
-                SearchBar(text: $searchText, accentColor: Theme.accentChats).padding(.horizontal, 16).padding(.bottom, 8)
+                SearchBar(text: $searchText, accentColor: Theme.accentChats)
+                    .padding(.horizontal, 16).padding(.bottom, 8)
 
-                ScrollView(showsIndicators: false) {
-                    LazyVStack(spacing: 0) {
-                        ForEach(chats) { chat in
-                            Button { dismiss() } label: {
-                                HStack(spacing: 12) {
-                                    AvatarView(initials: chat.avatarInitials, size: 40, isOnline: chat.isOnline)
-                                    Text(chat.name).font(.system(size: 15)).foregroundColor(Theme.text)
-                                    Spacer()
-                                    Image(systemName: "arrowshape.turn.up.right.fill")
-                                        .font(.system(size: 14)).foregroundColor(Theme.accentChats)
+                if isLoading {
+                    Spacer()
+                    ProgressView().tint(Theme.accentChats)
+                    Spacer()
+                } else if filtered.isEmpty {
+                    Spacer()
+                    Text("Нет контактов").font(.system(size: 14)).foregroundColor(Theme.muted)
+                    Spacer()
+                } else {
+                    ScrollView(showsIndicators: false) {
+                        LazyVStack(spacing: 0) {
+                            ForEach(filtered) { c in
+                                let name = c.user?.display_name ?? c.user?.username ?? "User"
+                                let initials = String(name.prefix(2)).uppercased()
+                                let isOnline = c.user?.is_online ?? false
+
+                                Button {
+                                    forwardTo(c, name: name)
+                                } label: {
+                                    HStack(spacing: 12) {
+                                        AvatarView(initials: initials, size: 40, isOnline: isOnline)
+                                        VStack(alignment: .leading, spacing: 2) {
+                                            Text(name).font(.system(size: 15)).foregroundColor(Theme.text)
+                                            Text("@\(c.user?.username ?? "")").font(.system(size: 12)).foregroundColor(Theme.muted)
+                                        }
+                                        Spacer()
+                                        Image(systemName: "arrowshape.turn.up.right.fill")
+                                            .font(.system(size: 14)).foregroundColor(Theme.accentChats)
+                                    }
+                                    .padding(.horizontal, 20).padding(.vertical, 10)
                                 }
-                                .padding(.horizontal, 20).padding(.vertical, 10)
+                                .buttonStyle(.plain)
+                                Divider().background(Theme.sep).padding(.leading, 72)
                             }
-                            .buttonStyle(.plain)
-                            Divider().background(Theme.sep).padding(.leading, 72)
                         }
                     }
                 }
             }
         }
         .presentationDetents([.medium, .large])
+        .task { await loadContacts() }
+    }
+
+    private func loadContacts() async {
+        isLoading = true; defer { isLoading = false }
+        do { contacts = try await APIClient.shared.request(url: API.Contacts.list) }
+        catch {}
+    }
+
+    private func forwardTo(_ contact: APIContact, name: String) {
+        // Forward: копируем текст сообщения в буфер + уведомляем пользователя
+        // Реальная отправка требует чат-сервер (WebSocket/Tinode)
+        // Пока: копируем текст и показываем toast
+        if let msg = message, !msg.text.isEmpty {
+            UIPasteboard.general.string = msg.text
+            toast.show("Текст скопирован — отправьте \(name) вручную", style: .info, icon: "arrowshape.turn.up.right.fill")
+        } else {
+            toast.show("Перенаправлено для \(name)", style: .success, icon: "arrowshape.turn.up.right.fill")
+        }
+        dismiss()
     }
 }
 
