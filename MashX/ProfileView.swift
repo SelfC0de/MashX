@@ -4,6 +4,7 @@ import SwiftUI
 struct ProfileView: View {
     @EnvironmentObject private var settings: SettingsStore
     @EnvironmentObject private var toast: ToastManager
+    @EnvironmentObject private var auth: AuthManager
 
     @State private var showQR = false
     @FocusState private var field: ProfileField?
@@ -75,7 +76,7 @@ struct ProfileView: View {
                 }
 
                 VStack(spacing: 4) {
-                    let displayName = AuthManager.shared.currentUser?.display_name ?? settings.username
+                    let displayName = auth.currentUser?.display_name ?? settings.username
                     Text(displayName.isEmpty ? "Ваше имя" : displayName)
                         .font(.system(size: 22, weight: .bold))
                         .foregroundColor(displayName.isEmpty ? Theme.muted : Theme.text)
@@ -88,7 +89,7 @@ struct ProfileView: View {
                             .padding(.horizontal, 40)
                     }
 
-                    if let username = AuthManager.shared.currentUser?.username, !username.isEmpty {
+                    if let username = auth.currentUser?.username, !username.isEmpty {
                         Button {
                             UIPasteboard.general.string = "@\(username)"
                             toast.show("@\(username) скопирован", style: .success, icon: "doc.on.clipboard")
@@ -207,14 +208,21 @@ struct ProfileGridBG: View {
 }
 
 // MARK: - Sessions Sheet
+struct APISession: Decodable, Identifiable {
+    let id: String
+    let device_name: String
+    let device_os: String
+    let created_at: String
+    let is_current: Bool
+}
+
 struct SessionsView: View {
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var toast: ToastManager
     private let accent = Theme.accentProfile
 
-    private let sessions: [(String, String, String, String, Bool)] = [
-        ("iPhone", "iOS", "", "Сейчас", true),
-    ]
+    @State private var sessions: [APISession] = []
+    @State private var isLoading = false
 
     var body: some View {
         ZStack {
@@ -231,61 +239,88 @@ struct SessionsView: View {
                 }
                 .padding(.horizontal, 20).padding(.bottom, 16)
 
-                ForEach(sessions, id: \.0) { name, os, location, time, current in
-                    HStack(spacing: 14) {
-                        Image(systemName: name.contains("Mac") ? "laptopcomputer" : "iphone")
-                            .font(.system(size: 22)).foregroundColor(accent)
-                            .frame(width: 50, height: 50).background(accent.opacity(0.12)).cornerRadius(12)
-                        VStack(alignment: .leading, spacing: 3) {
-                            HStack(spacing: 6) {
-                                Text(name).font(.system(size: 15, weight: .semibold)).foregroundColor(Theme.text)
-                                if current {
-                                    Text("текущее")
-                                        .font(.system(size: 10, weight: .semibold)).foregroundColor(.white)
-                                        .padding(.horizontal, 6).padding(.vertical, 2)
-                                        .background(accent).cornerRadius(4)
+                if isLoading {
+                    Spacer(); ProgressView().tint(accent); Spacer()
+                } else {
+                    ScrollView(showsIndicators: false) {
+                        ForEach(sessions) { session in
+                            HStack(spacing: 14) {
+                                Image(systemName: session.device_os.lowercased().contains("mac") ? "laptopcomputer" : "iphone")
+                                    .font(.system(size: 22)).foregroundColor(accent)
+                                    .frame(width: 50, height: 50).background(accent.opacity(0.12)).cornerRadius(12)
+                                VStack(alignment: .leading, spacing: 3) {
+                                    HStack(spacing: 6) {
+                                        Text(session.device_name).font(.system(size: 15, weight: .semibold)).foregroundColor(Theme.text)
+                                        if session.is_current {
+                                            Text("текущее")
+                                                .font(.system(size: 10, weight: .semibold)).foregroundColor(.white)
+                                                .padding(.horizontal, 6).padding(.vertical, 2)
+                                                .background(accent).cornerRadius(4)
+                                        }
+                                    }
+                                    Text(session.device_os).font(.system(size: 12)).foregroundColor(Theme.muted)
+                                    Text(session.created_at).font(.system(size: 11)).foregroundColor(Theme.dim)
+                                }
+                                Spacer()
+                                if !session.is_current {
+                                    Button {
+                                        Task { await revokeSession(session) }
+                                    } label: {
+                                        Text("Завершить")
+                                            .font(.system(size: 12, weight: .semibold)).foregroundColor(.red)
+                                            .padding(.horizontal, 10).padding(.vertical, 6)
+                                            .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.red.opacity(0.4), lineWidth: 0.5))
+                                    }
                                 }
                             }
-                            Text(os).font(.system(size: 12)).foregroundColor(Theme.muted)
-                            HStack(spacing: 3) {
-                                Image(systemName: "location.fill").font(.system(size: 9)).foregroundColor(Theme.dim)
-                                Text("\(location) · \(time)").font(.system(size: 11)).foregroundColor(Theme.dim)
-                            }
-                        }
-                        Spacer()
-                        if !current {
-                            Button {
-                                toast.show("Сессия завершена", style: .success)
-                            } label: {
-                                Text("Завершить")
-                                    .font(.system(size: 12, weight: .semibold)).foregroundColor(.red)
-                                    .padding(.horizontal, 10).padding(.vertical, 6)
-                                    .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.red.opacity(0.4), lineWidth: 0.5))
-                            }
+                            .padding(.horizontal, 20).padding(.vertical, 12)
+                            Divider().background(Theme.sep).padding(.leading, 84)
                         }
                     }
-                    .padding(.horizontal, 20).padding(.vertical, 12)
-                    Divider().background(Theme.sep).padding(.leading, 84)
-                }
 
-                Spacer()
+                    Spacer()
 
-                Button {
-                    toast.show("Все сессии завершены", style: .success)
-                    dismiss()
-                } label: {
-                    Text("Завершить все остальные")
-                        .font(.system(size: 15, weight: .semibold)).foregroundColor(.red)
-                        .frame(maxWidth: .infinity).padding(.vertical, 14)
-                        .background(Color.red.opacity(0.1))
-                        .cornerRadius(14)
-                        .overlay(RoundedRectangle(cornerRadius: 14).stroke(Color.red.opacity(0.25), lineWidth: 0.5))
+                    Button {
+                        Task { await revokeAll() }
+                    } label: {
+                        Text("Завершить все остальные")
+                            .font(.system(size: 15, weight: .semibold)).foregroundColor(.red)
+                            .frame(maxWidth: .infinity).padding(.vertical, 14)
+                            .background(Color.red.opacity(0.1))
+                            .cornerRadius(14)
+                            .overlay(RoundedRectangle(cornerRadius: 14).stroke(Color.red.opacity(0.25), lineWidth: 0.5))
+                    }
+                    .padding(.horizontal, 20).padding(.bottom, 40)
                 }
-                .padding(.horizontal, 20).padding(.bottom, 40)
             }
         }
         .presentationDetents([.medium, .large])
         .presentationDragIndicator(.hidden)
+        .task { await loadSessions() }
+    }
+
+    private func loadSessions() async {
+        isLoading = true; defer { isLoading = false }
+        do { sessions = try await APIClient.shared.request(url: API.Auth.sessions) }
+        catch { toast.show("Ошибка загрузки сессий", style: .error) }
+    }
+
+    private func revokeSession(_ s: APISession) async {
+        do {
+            _ = try await APIClient.shared.request(
+                url: API.Auth.revokeSession(s.id), method: .DELETE) as EmptyResponse
+            sessions.removeAll { $0.id == s.id }
+            toast.show("Сессия завершена", style: .success)
+        } catch { toast.show("Ошибка", style: .error) }
+    }
+
+    private func revokeAll() async {
+        do {
+            _ = try await APIClient.shared.request(
+                url: API.Auth.logoutAll, method: .POST) as EmptyResponse
+            await loadSessions()
+            toast.show("Все сессии завершены", style: .success)
+        } catch { toast.show("Ошибка", style: .error) }
     }
 }
 
@@ -293,6 +328,7 @@ struct SessionsView: View {
 struct QRCardSheet: View {
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var toast: ToastManager
+    @EnvironmentObject private var auth: AuthManager
     let accent: Color
 
     var body: some View {
@@ -320,7 +356,7 @@ struct QRCardSheet: View {
                                 Image(systemName: "qrcode").font(.system(size: 140)).foregroundColor(Color(hex: "#0d0d14"))
                             }
                             VStack(spacing: 4) {
-                                Text("@\(AuthManager.shared.currentUser?.username ?? "me")").font(.system(size: 16, weight: .semibold)).foregroundColor(accent)
+                                Text("@\(auth.currentUser?.username ?? "me")").font(.system(size: 16, weight: .semibold)).foregroundColor(accent)
                                 Text("Отсканируй чтобы написать").font(.system(size: 12)).foregroundColor(Theme.muted)
                             }
                         }
@@ -331,7 +367,7 @@ struct QRCardSheet: View {
                     HStack(spacing: 12) {
                         shareButton("square.and.arrow.up", "Поделиться") { toast.show("Ссылка скопирована", style: .success) }
                         shareButton("doc.on.clipboard", "Скопировать") {
-                            UIPasteboard.general.string = "https://mashx.app/@\(AuthManager.shared.currentUser?.username ?? "")"
+                            UIPasteboard.general.string = "https://mashx.app/@\(auth.currentUser?.username ?? "")"
                             toast.show("Ссылка скопирована", style: .success)
                         }
                     }
