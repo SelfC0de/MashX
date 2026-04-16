@@ -33,11 +33,15 @@ enum Theme {
 final class ThemeManager: ObservableObject {
     static let shared = ThemeManager()
 
-    @AppStorage("accent_index")    var accentIndex: Int = 0
-    @AppStorage("font_size_index") var fontSizeIndex: Int = 1
-    @AppStorage("language_index")  var languageIndex: Int = 0
+    @AppStorage("accent_index")      var accentIndex: Int = 0
+    @AppStorage("font_size_index")   var fontSizeIndex: Int = 1
+    @AppStorage("language_index")    var languageIndex: Int = 0
+    @AppStorage("custom_accent_hex") var customAccentHex: String = ""
 
-    var accent: Color { Theme.accentColors[min(accentIndex, Theme.accentColors.count - 1)] }
+    var accent: Color {
+        if !customAccentHex.isEmpty { return Color(hex: customAccentHex) }
+        return Theme.accentColors[min(accentIndex, Theme.accentColors.count - 1)]
+    }
     var fontSize: CGFloat { Theme.fontSizes[min(fontSizeIndex, Theme.fontSizes.count - 1)] }
 
     private init() {}

@@ -7,7 +7,6 @@ struct SettingsView: View {
     @EnvironmentObject private var themeManager: ThemeManager
 
     @State private var showSessions      = false
-    @State private var showAccentPicker  = false
     @State private var showDeleteAlert   = false
     @State private var showDeleteConfirm = false
     @State private var deletePassword    = ""
@@ -16,14 +15,7 @@ struct SettingsView: View {
 
     private var accent: Color { themeManager.accent }
 
-    private let accentPresets: [(String, Color)] = [
-        ("Фиолет",  Color(hex: "#7B5CFA")),
-        ("Синий",   Color(hex: "#3B82F6")),
-        ("Зелёный", Color(hex: "#10B981")),
-        ("Розовый", Color(hex: "#EC4899")),
-        ("Янтарь",  Color(hex: "#F59E0B")),
-        ("Красный", Color(hex: "#EF4444")),
-    ]
+
 
     var body: some View {
         NavigationStack {
@@ -45,12 +37,7 @@ struct SettingsView: View {
             }
             .navigationBarHidden(true)
             .sheet(isPresented: $showSessions)     { SessionsView() }
-            .sheet(isPresented: $showAccentPicker) {
-                AccentPickerSheet(presets: accentPresets, current: Binding(
-                    get: { themeManager.accentIndex },
-                    set: { themeManager.accentIndex = $0; settings.accentIndex = $0 }
-                ))
-            }
+
             .sheet(isPresented: $showDeleteConfirm) { deleteConfirmSheet }
             .alert("Удалить аккаунт?", isPresented: $showDeleteAlert) {
                 Button("Отмена", role: .cancel) {}
@@ -184,20 +171,28 @@ struct SettingsView: View {
 
     private var appearanceContent: some View {
         VStack(spacing: 0) {
-            Button { showAccentPicker = true } label: {
-                HStack(spacing: 14) {
-                    accentIcon("paintbrush.fill")
-                    Text("Акцентный цвет").font(.system(size: 15)).foregroundColor(Theme.text)
-                    Spacer()
-                    HStack(spacing: 4) {
-                        Circle().fill(accentPresets[themeManager.accentIndex].1).frame(width: 16, height: 16)
-                        Text(accentPresets[themeManager.accentIndex].0).font(.system(size: 13)).foregroundColor(Theme.muted)
-                        Image(systemName: "chevron.right").font(.system(size: 11)).foregroundColor(Theme.dim)
+            HStack(spacing: 14) {
+                accentIcon("paintbrush.fill")
+                Text("Акцентный цвет").font(.system(size: 15)).foregroundColor(Theme.text)
+                Spacer()
+                ColorPicker("", selection: Binding(
+                    get: { themeManager.accent },
+                    set: { color in
+                        // Сохраняем как пользовательский цвет через UserDefaults
+                        if let components = UIColor(color).cgColor.components, components.count >= 3 {
+                            let hex = String(format: "#%02X%02X%02X",
+                                Int(components[0] * 255),
+                                Int(components[1] * 255),
+                                Int(components[2] * 255))
+                            UserDefaults.standard.set(hex, forKey: "custom_accent_hex")
+                            themeManager.customAccentHex = hex
+                        }
                     }
-                }
-                .padding(.horizontal, 16).padding(.vertical, 12)
+                ), supportsOpacity: false)
+                .labelsHidden()
+                .frame(width: 32, height: 32)
             }
-            .buttonStyle(.plain)
+            .padding(.horizontal, 16).padding(.vertical, 12)
             rowDivider()
             segmentRow("Язык", "globe", ["RU", "EN"], Binding(
                 get: { themeManager.languageIndex },
