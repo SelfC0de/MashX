@@ -195,7 +195,10 @@ struct GroupDetailView: View {
     let onLeft: () async -> Void
     @State private var members: [APIGroupMember] = []
     @State private var showMembers = false
+    @State private var showEdit = false
+    @State private var showDeleteAlert = false
     @State private var isLeaving = false
+    @State private var isDeleting = false
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var toast: ToastManager
     @EnvironmentObject private var auth: AuthManager
@@ -323,7 +326,24 @@ struct GroupDetailView: View {
         }
         .navigationBarHidden(true)
         .sheet(isPresented: $showMembers) { MembersSheetView(group: group, members: members, accent: accent) }
+        .sheet(isPresented: $showEdit) { EditGroupSheet(group: group, accent: accent, onSaved: { await loadMembers() }) }
+        .alert("Удалить группу?", isPresented: $showDeleteAlert) {
+            Button("Отмена", role: .cancel) {}
+            Button("Удалить", role: .destructive) { Task { await deleteGroup() } }
+        } message: { Text("Группа и все её данные будут удалены безвозвратно.") }
         .task { await loadMembers() }
+    }
+
+    private func deleteGroup() async {
+        isDeleting = true; defer { isDeleting = false }
+        do {
+            _ = try await APIClient.shared.request(
+                url: API.Groups.get(group.id), method: .DELETE) as EmptyResponse
+            await onLeft()
+            toast.show("Группа удалена", style: .info)
+            dismiss()
+        } catch APIError.server(let msg) { toast.show(msg, style: .error) }
+        catch { toast.show("Ошибка", style: .error) }
     }
 
     private func loadMembers() async {
@@ -357,8 +377,22 @@ struct GroupDetailView: View {
             Spacer()
             Text(group.name).font(.system(size: 16, weight: .semibold)).foregroundColor(Theme.text).lineLimit(1)
             Spacer()
-            Button { showMembers = true } label: {
-                Image(systemName: "person.2.fill").font(.system(size: 15)).foregroundColor(accent)
+            HStack(spacing: 8) {
+                Button { showMembers = true } label: {
+                    Image(systemName: "person.2.fill").font(.system(size: 15)).foregroundColor(accent)
+                }
+                if group.owner_id == (auth.currentUser?.id ?? "") {
+                    Menu {
+                        Button { showEdit = true } label: {
+                            Label("Редактировать", systemImage: "pencil")
+                        }
+                        Button(role: .destructive) { showDeleteAlert = true } label: {
+                            Label("Удалить группу", systemImage: "trash")
+                        }
+                    } label: {
+                        Image(systemName: "ellipsis.circle").font(.system(size: 18)).foregroundColor(accent)
+                    }
+                }
             }
         }
         .padding(.horizontal, 16).padding(.vertical, 12)
@@ -555,6 +589,7 @@ struct CreateGroupSheet: View {
     @State private var isPublic = false
     @State private var isLoading = false
     @State private var errorMsg: String?
+    @FocusState private var focused: Bool
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var toast: ToastManager
 
@@ -598,6 +633,13 @@ struct CreateGroupSheet: View {
             }
         }
         .presentationDetents([.medium])
+        .toolbar {
+            ToolbarItemGroup(placement: .keyboard) {
+                Spacer()
+                Button("Готово") { focused = false }
+                    .foregroundColor(accent).fontWeight(.semibold)
+            }
+        }
     }
 
     private func fieldView(_ label: String, placeholder: String, text: Binding<String>) -> some View {
@@ -605,6 +647,7 @@ struct CreateGroupSheet: View {
             Text(label).font(.system(size: 13)).foregroundColor(Theme.muted)
             TextField(placeholder, text: text)
                 .foregroundColor(Theme.text).tint(accent)
+                .focused($focused)
                 .padding(12).background(Theme.card).cornerRadius(12)
                 .overlay(RoundedRectangle(cornerRadius: 12).stroke(Theme.border, lineWidth: 0.5))
         }
@@ -619,6 +662,104 @@ struct CreateGroupSheet: View {
                 body: CreateReq(name: name, description: description, is_public: isPublic)) as EmptyResponse
             await onCreated()
             toast.show("Группа создана", style: .success)
+            dismiss()
+        } catch APIError.server(let msg) { errorMsg = msg }
+        catch { errorMsg = error.localizedDescription }
+    }
+}
+
+// MARK: - Edit Group Sheet
+struct EditGroupSheet: View {
+    let group: APIGroup
+    let accent: Color
+    let onSaved: () async -> Void
+    @State private var name: String
+    @State private var description: String
+    @State private var isPublic: Bool
+    @State private var isLoading = false
+    @State private var errorMsg: String?
+    @FocusState private var focused: Bool
+    @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject private var toast: ToastManager
+
+    init(group: APIGroup, accent: Color, onSaved: @escaping () async -> Void) {
+        self.group = group
+        self.accent = accent
+        self.onSaved = onSaved
+        _name = State(initialValue: group.name)
+        _description = State(initialValue: group.description)
+        _isPublic = State(initialValue: group.is_public)
+    }
+
+    var body: some View {
+        ZStack {
+            Theme.bg.ignoresSafeArea()
+            VStack(spacing: 20) {
+                Capsule().fill(Theme.dim).frame(width: 36, height: 4).padding(.top, 10)
+                Text("Редактировать группу").font(.system(size: 18, weight: .bold)).foregroundColor(Theme.text)
+
+                VStack(spacing: 12) {
+                    fieldView("Название", placeholder: "Название группы", text: $name)
+                    fieldView("Описание", placeholder: "О чём группа?", text: $description)
+
+                    HStack {
+                        Text("Публичная группа").font(.system(size: 15)).foregroundColor(Theme.text)
+                        Spacer()
+                        Toggle("", isOn: $isPublic).tint(accent).labelsHidden()
+                    }
+                    .padding(12).background(Theme.card).cornerRadius(12)
+                    .overlay(RoundedRectangle(cornerRadius: 12).stroke(Theme.border, lineWidth: 0.5))
+                }
+                .padding(.horizontal, 24)
+
+                if let e = errorMsg {
+                    Text(e).font(.system(size: 13)).foregroundColor(.red).padding(.horizontal, 24)
+                }
+
+                Button { Task { await saveGroup() } } label: {
+                    ZStack {
+                        if isLoading { ProgressView().tint(.white) }
+                        else { Text("Сохранить").font(.system(size: 16, weight: .semibold)).foregroundColor(.white) }
+                    }
+                    .frame(maxWidth: .infinity).frame(height: 50)
+                    .background(name.count >= 2 ? accent : Theme.dim).cornerRadius(14)
+                }
+                .disabled(name.count < 2 || isLoading)
+                .padding(.horizontal, 24)
+
+                Spacer()
+            }
+        }
+        .presentationDetents([.medium])
+        .toolbar {
+            ToolbarItemGroup(placement: .keyboard) {
+                Spacer()
+                Button("Готово") { focused = false }
+                    .foregroundColor(accent).fontWeight(.semibold)
+            }
+        }
+    }
+
+    private func fieldView(_ label: String, placeholder: String, text: Binding<String>) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(label).font(.system(size: 13)).foregroundColor(Theme.muted)
+            TextField(placeholder, text: text)
+                .foregroundColor(Theme.text).tint(accent)
+                .focused($focused)
+                .padding(12).background(Theme.card).cornerRadius(12)
+                .overlay(RoundedRectangle(cornerRadius: 12).stroke(Theme.border, lineWidth: 0.5))
+        }
+    }
+
+    private func saveGroup() async {
+        isLoading = true; errorMsg = nil; defer { isLoading = false }
+        struct UpdateReq: Encodable { let name: String; let description: String; let is_public: Bool }
+        do {
+            _ = try await APIClient.shared.request(
+                url: API.Groups.get(group.id), method: .PATCH,
+                body: UpdateReq(name: name, description: description, is_public: isPublic)) as EmptyResponse
+            await onSaved()
+            toast.show("Группа обновлена", style: .success)
             dismiss()
         } catch APIError.server(let msg) { errorMsg = msg }
         catch { errorMsg = error.localizedDescription }

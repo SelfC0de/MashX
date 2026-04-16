@@ -2,6 +2,7 @@ import SwiftUI
 
 struct RootView: View {
     @EnvironmentObject private var toast: ToastManager
+    @EnvironmentObject private var themeManager: ThemeManager
     @State private var selectedTab: Tab = .chats
 
     var body: some View {
@@ -36,6 +37,7 @@ struct RootView: View {
             ToastOverlay()
         }
         .ignoresSafeArea(edges: .bottom)
+        .id(themeManager.languageIndex) // пересоздаём view при смене языка
     }
 }
 
@@ -67,7 +69,7 @@ struct CustomTabBar: View {
                         }
                         .frame(width: 44, height: 30)
 
-                        Text(tab.label)
+                        Text(tab.localizedLabel)
                             .font(.system(size: 10, weight: selectedTab == tab ? .semibold : .regular))
                             .foregroundColor(selectedTab == tab ? tab.accent : Theme.dim)
                     }
@@ -83,5 +85,17 @@ struct CustomTabBar: View {
             Theme.bgSecond
                 .overlay(Rectangle().frame(height: 0.5).foregroundColor(Theme.border), alignment: .top)
         )
+    }
+}
+
+extension Tab {
+    var localizedLabel: String {
+        switch self {
+        case .profile:  return L.profile
+        case .contacts: return L.contacts
+        case .chats:    return L.chats
+        case .groups:   return L.groups
+        case .settings: return L.settings
+        }
     }
 }

@@ -16,7 +16,7 @@ struct AuthRootView: View {
             case .recover:  RecoverView(onBack: { screen = .login })
             }
         }
-        .animation(.spring(response: 0.35, dampingFraction: 0.85), value: screen)
+        .animation(.spring(response: 0.5, dampingFraction: 0.9), value: screen)
     }
 }
 

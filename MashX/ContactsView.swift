@@ -35,7 +35,6 @@ struct ContactsView: View {
     @State private var showPending = false
     @State private var showAddSheet = false
     @State private var showQR = false
-    @State private var showScanner = false
     @State private var isLoading = false
 
     @EnvironmentObject private var settings: SettingsStore
@@ -78,7 +77,6 @@ struct ContactsView: View {
             .navigationBarHidden(true)
             .sheet(isPresented: $showAddSheet) { AddContactSheet(accent: accent, onAdded: loadContacts) }
             .sheet(isPresented: $showQR)       { QRCardSheet(accent: accent) }
-            .sheet(isPresented: $showScanner)  { QRScannerStub() }
             .task { await loadContacts(); await loadPending() }
             .refreshable { await loadContacts(); await loadPending() }
         }
@@ -153,11 +151,7 @@ struct ContactsView: View {
                         .font(.system(size: 13)).foregroundColor(accent)
                         .frame(width: 34, height: 34).background(accent.opacity(0.12)).cornerRadius(8)
                 }
-                Button { showScanner = true } label: {
-                    Image(systemName: "qrcode.viewfinder")
-                        .font(.system(size: 15, weight: .semibold)).foregroundColor(accent)
-                        .frame(width: 34, height: 34).background(accent.opacity(0.12)).cornerRadius(8)
-                }
+
                 Button { showQR = true } label: {
                     Image(systemName: "qrcode")
                         .font(.system(size: 15, weight: .semibold)).foregroundColor(accent)
@@ -384,23 +378,3 @@ struct AddContactSheet: View {
     }
 }
 
-// MARK: - QR Scanner Stub
-struct QRScannerStub: View {
-    @Environment(\.dismiss) private var dismiss
-    var body: some View {
-        ZStack {
-            Color.black.ignoresSafeArea()
-            VStack(spacing: 20) {
-                Text("Сканер QR").font(.system(size: 18, weight: .bold)).foregroundColor(.white)
-                ZStack {
-                    RoundedRectangle(cornerRadius: 16).stroke(Theme.accentContacts, lineWidth: 2).frame(width: 220, height: 220)
-                    Image(systemName: "camera.fill").font(.system(size: 50)).foregroundColor(Theme.accentContacts.opacity(0.4))
-                }
-                Button { dismiss() } label: {
-                    Text("Закрыть").font(.system(size: 15)).foregroundColor(Theme.accentContacts)
-                }
-            }
-        }
-        .presentationDetents([.medium])
-    }
-}
