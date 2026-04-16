@@ -107,8 +107,7 @@ struct ChatsView: View {
                         partnerID: chat.partner_id,
                         partnerName: chat.display_name,
                         partnerAvatar: chat.avatar_url,
-                        isPartnerOnline: chat.is_online && chat.show_online,
-                        partnerLastSeen: chat.last_seen_at
+                        isPartnerOnline: chat.is_online && chat.show_online
                     )) {
                         ChatRowView(chat: chat, accent: accent, myID: auth.currentUser?.id ?? "")
                     }
