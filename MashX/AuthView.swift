@@ -515,12 +515,15 @@ struct AuthField<Tag: Hashable>: View {
     let accentColor: Color
 
     var body: some View {
-        HStack(spacing: 12) {
+        let isFocused = focused.wrappedValue == tag
+        let strokeColor: Color = borderColor ?? (isFocused ? accentColor.opacity(0.5) : Theme.border)
+        let iconColor: Color = isFocused ? accentColor : Theme.muted
+        return HStack(spacing: 12) {
             Image(systemName: icon)
                 .font(.system(size: 14))
-                .foregroundColor(focused.wrappedValue == tag ? accentColor : Theme.muted)
+                .foregroundColor(iconColor)
                 .frame(width: 20)
-            Group {
+            SwiftUI.Group {
                 if isSecure {
                     SecureField(placeholder, text: $text)
                 } else {
@@ -537,11 +540,8 @@ struct AuthField<Tag: Hashable>: View {
         .cornerRadius(12)
         .overlay(
             RoundedRectangle(cornerRadius: 12)
-                .stroke(
-                    borderColor ?? (focused.wrappedValue == tag ? accentColor.opacity(0.5) : Theme.border),
-                    lineWidth: 0.5
-                )
+                .stroke(strokeColor, lineWidth: 0.5)
         )
-        .animation(.easeInOut(duration: 0.15), value: focused.wrappedValue == tag)
+        .animation(.easeInOut(duration: 0.15), value: isFocused)
     }
 }
