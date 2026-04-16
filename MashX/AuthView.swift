@@ -416,7 +416,7 @@ struct RecoverView: View {
             Image(systemName: icon)
                 .font(.system(size: 14)).foregroundColor(Theme.accentGroups)
                 .frame(width: 20)
-            Group {
+            SwiftUI.Group {
                 if secure {
                     SecureField(ph, text: b)
                 } else {

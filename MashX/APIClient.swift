@@ -42,7 +42,8 @@ final class APIClient {
         req.httpMethod = method.rawValue
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
         req.setValue(deviceName(), forHTTPHeaderField: "X-Device-Name")
-        req.setValue("iOS \(UIDevice.current.systemVersion)", forHTTPHeaderField: "X-Device-OS")
+        let osVersion = await MainActor.run { UIDevice.current.systemVersion }
+        req.setValue("iOS \(osVersion)", forHTTPHeaderField: "X-Device-OS")
 
         if auth, let token = accessToken {
             req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
