@@ -15,6 +15,7 @@ struct APIContact: Decodable, Identifiable {
         let avatar_url: String
         let bio: String
         let is_online: Bool
+        let last_seen_at: String?
     }
 }
 
@@ -196,7 +197,7 @@ struct ContactsView: View {
                 VStack(spacing: 0) {
                     ForEach(pending) { p in
                         HStack(spacing: 12) {
-                            AvatarView(initials: String(p.display_name.prefix(2)).uppercased(), size: 44)
+                            UserAvatarView(avatarURL: p.avatar_url, initials: String(p.display_name.prefix(2)).uppercased(), size: 44)
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(p.display_name).font(.system(size: 15, weight: .semibold)).foregroundColor(Theme.text)
                                 Text("@\(p.username)").font(.system(size: 12)).foregroundColor(Theme.muted)
@@ -273,7 +274,7 @@ struct ContactsView: View {
         let isOnline = (c.user?.is_online ?? false) && !settings.offlineMode
 
         HStack(spacing: 12) {
-            AvatarView(initials: initials, size: 46, isOnline: isOnline)
+            UserAvatarView(avatarURL: c.user?.avatar_url ?? "", initials: initials, size: 46, isOnline: isOnline)
             VStack(alignment: .leading, spacing: 2) {
                 HStack(spacing: 4) {
                     Text(name).font(.system(size: 15, weight: .semibold)).foregroundColor(Theme.text)
@@ -281,7 +282,7 @@ struct ContactsView: View {
                         Image(systemName: "star.fill").font(.system(size: 10)).foregroundColor(Theme.accentGroups)
                     }
                 }
-                Text(isOnline ? "онлайн" : "@\(c.user?.username ?? "")")
+                Text(isOnline ? "онлайн" : onlineStatusText(isOnline: false, lastSeenAt: c.user?.last_seen_at))
                     .font(.system(size: 13))
                     .foregroundColor(isOnline ? accent : Theme.muted)
             }

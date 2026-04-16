@@ -24,6 +24,7 @@ struct APIGroupMember: Decodable, Identifiable {
         let display_name: String
         let avatar_url: String
         let is_online: Bool
+        let last_seen_at: String?
     }
 }
 
@@ -404,8 +405,12 @@ struct GroupDetailView: View {
         let name = m.user?.display_name ?? m.user?.username ?? "User"
         let initials = String(name.prefix(2)).uppercased()
         return HStack(spacing: 12) {
-            AvatarView(initials: initials, size: 38, isOnline: m.user?.is_online ?? false)
-            Text(name).font(.system(size: 14)).foregroundColor(Theme.text)
+            UserAvatarView(avatarURL: m.user?.avatar_url ?? "", initials: initials, size: 38, isOnline: m.user?.is_online ?? false)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(name).font(.system(size: 14)).foregroundColor(Theme.text)
+                Text(onlineStatusText(isOnline: m.user?.is_online ?? false, lastSeenAt: m.user?.last_seen_at))
+                    .font(.system(size: 11)).foregroundColor(onlineStatusColor(isOnline: m.user?.is_online ?? false))
+            }
             Spacer()
             roleLabel(m.role)
         }
@@ -455,9 +460,12 @@ struct MembersSheetView: View {
                         ForEach(members) { m in
                             let name = m.user?.display_name ?? m.user?.username ?? "User"
                             HStack(spacing: 12) {
-                                AvatarView(initials: String(name.prefix(2)).uppercased(), size: 42,
-                                           isOnline: m.user?.is_online ?? false)
-                                Text(name).font(.system(size: 15)).foregroundColor(Theme.text)
+                                UserAvatarView(avatarURL: m.user?.avatar_url ?? "", initials: String(name.prefix(2)).uppercased(), size: 42, isOnline: m.user?.is_online ?? false)
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(name).font(.system(size: 15)).foregroundColor(Theme.text)
+                                    Text(onlineStatusText(isOnline: m.user?.is_online ?? false, lastSeenAt: m.user?.last_seen_at))
+                                        .font(.system(size: 12)).foregroundColor(onlineStatusColor(isOnline: m.user?.is_online ?? false))
+                                }
                                 Spacer()
                                 roleTag(m.role)
                             }

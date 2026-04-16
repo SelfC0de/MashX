@@ -15,6 +15,7 @@ struct APIChat: Decodable, Identifiable {
     let last_deleted: Bool?
     let last_at: String?
     let unread: Int
+    let last_seen_at: String?
 }
 
 struct ChatsView: View {
@@ -106,7 +107,8 @@ struct ChatsView: View {
                         partnerID: chat.partner_id,
                         partnerName: chat.display_name,
                         partnerAvatar: chat.avatar_url,
-                        isPartnerOnline: chat.is_online && chat.show_online
+                        isPartnerOnline: chat.is_online && chat.show_online,
+                        partnerLastSeen: chat.last_seen_at
                     )) {
                         ChatRowView(chat: chat, accent: accent, myID: auth.currentUser?.id ?? "")
                     }
@@ -136,8 +138,9 @@ struct ChatRowView: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            AvatarView(initials: String(chat.display_name.prefix(2)).uppercased(),
-                       size: 48, isOnline: chat.is_online && chat.show_online)
+            UserAvatarView(avatarURL: chat.avatar_url,
+                           initials: String(chat.display_name.prefix(2)).uppercased(),
+                           size: 48, isOnline: chat.is_online && chat.show_online)
             VStack(alignment: .leading, spacing: 3) {
                 HStack {
                     Text(chat.display_name).font(.system(size: 15, weight: .semibold)).foregroundColor(Theme.text).lineLimit(1)
