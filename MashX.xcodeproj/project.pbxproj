@@ -20,6 +20,7 @@
 		2D7991543657910E1565BE81 /* ContactsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1C06D89B3C2A19E170369ABA /* ContactsView.swift */; };
 		958A8ACC82CD748D3A138554 /* GroupsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90FCD8A5DDCF0DE2B7B9A602 /* GroupsView.swift */; };
 		1FD699C3E8F706206710F2AA /* ProfileView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC8C34075ABA4F86EB84D768 /* ProfileView.swift */; };
+		A016B001A016B001A016B001 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B016B001B016B001B016B001 /* SettingsView.swift */; };
 		8B40D333E5450E824FDEFA53 /* NetworkConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 802EFD73433D7C61CEAE041D /* NetworkConfig.swift */; };
 		31C87E3D49FE92E07F0B0D01 /* KeychainService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7DA7D5A9F4B168C2DA60FE8F /* KeychainService.swift */; };
 		61BA2B4DA7C91CE45A9A6CD7 /* APIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 41ED798BFC7C79B8A17F7B63 /* APIClient.swift */; };
@@ -42,6 +43,7 @@
 		1C06D89B3C2A19E170369ABA /* ContactsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContactsView.swift; sourceTree = "<group>"; };
 		90FCD8A5DDCF0DE2B7B9A602 /* GroupsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GroupsView.swift; sourceTree = "<group>"; };
 		CC8C34075ABA4F86EB84D768 /* ProfileView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileView.swift; sourceTree = "<group>"; };
+		B016B001B016B001B016B001 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		802EFD73433D7C61CEAE041D /* NetworkConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkConfig.swift; sourceTree = "<group>"; };
 		7DA7D5A9F4B168C2DA60FE8F /* KeychainService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainService.swift; sourceTree = "<group>"; };
 		41ED798BFC7C79B8A17F7B63 /* APIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIClient.swift; sourceTree = "<group>"; };
@@ -87,6 +89,7 @@
 				1C06D89B3C2A19E170369ABA /* ContactsView.swift */,
 				90FCD8A5DDCF0DE2B7B9A602 /* GroupsView.swift */,
 				CC8C34075ABA4F86EB84D768 /* ProfileView.swift */,
+				B016B001B016B001B016B001 /* SettingsView.swift */,
 				802EFD73433D7C61CEAE041D /* NetworkConfig.swift */,
 				7DA7D5A9F4B168C2DA60FE8F /* KeychainService.swift */,
 				41ED798BFC7C79B8A17F7B63 /* APIClient.swift */,
@@ -171,6 +174,7 @@
 				2D7991543657910E1565BE81 /* ContactsView.swift in Sources */,
 				958A8ACC82CD748D3A138554 /* GroupsView.swift in Sources */,
 				1FD699C3E8F706206710F2AA /* ProfileView.swift in Sources */,
+				A016B001A016B001A016B001 /* SettingsView.swift in Sources */,
 				8B40D333E5450E824FDEFA53 /* NetworkConfig.swift in Sources */,
 				31C87E3D49FE92E07F0B0D01 /* KeychainService.swift in Sources */,
 				61BA2B4DA7C91CE45A9A6CD7 /* APIClient.swift in Sources */,
