@@ -24,6 +24,10 @@ struct RootView: View {
                 GroupsView()
                     .opacity(selectedTab == .groups   ? 1 : 0)
                     .allowsHitTesting(selectedTab == .groups)
+
+                SettingsView()
+                    .opacity(selectedTab == .settings ? 1 : 0)
+                    .allowsHitTesting(selectedTab == .settings)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
 

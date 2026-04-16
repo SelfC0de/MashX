@@ -31,7 +31,7 @@ extension Color {
 
 // Tab index enum for clarity
 enum Tab: Int, CaseIterable {
-    case profile = 0, contacts, chats, groups
+    case profile = 0, contacts, chats, groups, settings
 
     var accent: Color {
         switch self {
@@ -39,6 +39,7 @@ enum Tab: Int, CaseIterable {
         case .contacts: return Theme.accentContacts
         case .chats:    return Theme.accentChats
         case .groups:   return Theme.accentGroups
+        case .settings: return Color(hex: "#EC4899")
         }
     }
     var icon: String {
@@ -47,6 +48,7 @@ enum Tab: Int, CaseIterable {
         case .contacts: return "person.2.fill"
         case .chats:    return "bubble.left.and.bubble.right.fill"
         case .groups:   return "person.3.fill"
+        case .settings: return "gearshape.fill"
         }
     }
     var label: String {
@@ -55,6 +57,7 @@ enum Tab: Int, CaseIterable {
         case .contacts: return "Контакты"
         case .chats:    return "Чаты"
         case .groups:   return "Группы"
+        case .settings: return "Настройки"
         }
     }
 }
