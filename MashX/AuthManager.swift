@@ -80,6 +80,9 @@ final class AuthManager: ObservableObject {
             state = .authenticated
         } catch APIError.unauthorized {
             await tryRefresh()
+        } catch APIError.notFound {
+            // Пользователь удалён из БД
+            clearSession()
         } catch {
             state = .unauthenticated
         }
