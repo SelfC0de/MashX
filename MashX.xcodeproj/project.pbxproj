@@ -33,6 +33,7 @@
 		C001D001C001D001C001D001 /* WebSocketManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = D001C001D001C001D001C001 /* WebSocketManager.swift */; };
 		C002D002C002D002C002D002 /* Localization.swift in Sources */ = {isa = PBXBuildFile; fileRef = D002C002D002C002D002C002 /* Localization.swift */; };
 		C003D003C003D003C003D003 /* SoundManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = D003C003D003C003D003C003 /* SoundManager.swift */; };
+		C004D004C004D004C004D004 /* OnlineStatus.swift in Sources */ = {isa = PBXBuildFile; fileRef = D004C004D004C004D004C004 /* OnlineStatus.swift */; };
 		8B6FDDE27147A4D5C20A99D5 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A5A6C4CF6C067B79FEA673C5 /* Assets.xcassets */; };
 /* End PBXBuildFile section */
 
@@ -63,6 +64,7 @@
 		D001C001D001C001D001C001 /* WebSocketManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebSocketManager.swift; sourceTree = "<group>"; };
 		D002C002D002C002D002C002 /* Localization.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Localization.swift; sourceTree = "<group>"; };
 		D003C003D003C003D003C003 /* SoundManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SoundManager.swift; sourceTree = "<group>"; };
+		D004C004D004C004D004C004 /* OnlineStatus.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnlineStatus.swift; sourceTree = "<group>"; };
 		A5A6C4CF6C067B79FEA673C5 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		A4B39F458AC4E84944F0C489 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		CE870142DF8452595642E790 /* MashX.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = MashX.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -116,6 +118,7 @@
 				D001C001D001C001D001C001 /* WebSocketManager.swift */,
 				D002C002D002C002D002C002 /* Localization.swift */,
 				D003C003D003C003D003C003 /* SoundManager.swift */,
+				D004C004D004C004D004C004 /* OnlineStatus.swift */,
 				A5A6C4CF6C067B79FEA673C5 /* Assets.xcassets */,
 				A4B39F458AC4E84944F0C489 /* Info.plist */,
 			);
@@ -208,6 +211,7 @@
 				C001D001C001D001C001D001 /* WebSocketManager.swift in Sources */,
 				C002D002C002D002C002D002 /* Localization.swift in Sources */,
 				C003D003C003D003C003D003 /* SoundManager.swift in Sources */,
+				C004D004C004D004C004D004 /* OnlineStatus.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
