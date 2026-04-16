@@ -78,6 +78,11 @@ final class AuthManager: ObservableObject {
             currentUser = user
             syncSettings(from: user)
             state = .authenticated
+            // Восстанавливаем локальный статус онлайн — если оффлайн включён, шлём на сервер
+            let s = SettingsStore.shared
+            if s.offlineMode || !s.showOnlineStatus {
+                await updateOnlineStatus(false)
+            }
         } catch APIError.unauthorized {
             await tryRefresh()
         } catch APIError.notFound {
