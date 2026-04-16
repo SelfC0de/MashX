@@ -83,51 +83,53 @@ struct ContactsView: View {
 
     // MARK: - Pending Banner (антиспам)
     private var pendingBanner: some View {
-        Button {
-            withAnimation { showPending.toggle() }
-        } label: {
-            HStack(spacing: 10) {
-                Image(systemName: "person.badge.clock.fill")
-                    .font(.system(size: 14)).foregroundColor(accent)
-                    .frame(width: 32, height: 32).background(accent.opacity(0.12)).cornerRadius(8)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Запросы на добавление")
-                        .font(.system(size: 14, weight: .semibold)).foregroundColor(Theme.text)
-                    Text("\(pending.count) ожидает ответа")
-                        .font(.system(size: 12)).foregroundColor(Theme.muted)
+        VStack(spacing: 0) {
+            Button {
+                withAnimation { showPending.toggle() }
+            } label: {
+                HStack(spacing: 10) {
+                    Image(systemName: "person.badge.clock.fill")
+                        .font(.system(size: 14)).foregroundColor(accent)
+                        .frame(width: 32, height: 32).background(accent.opacity(0.12)).cornerRadius(8)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Запросы на добавление")
+                            .font(.system(size: 14, weight: .semibold)).foregroundColor(Theme.text)
+                        Text("\(pending.count) ожидает ответа")
+                            .font(.system(size: 12)).foregroundColor(Theme.muted)
+                    }
+                    Spacer()
+                    UnreadBadge(count: pending.count, color: accent)
+                    Image(systemName: showPending ? "chevron.up" : "chevron.down")
+                        .font(.system(size: 11)).foregroundColor(Theme.dim)
                 }
-                Spacer()
-                UnreadBadge(count: pending.count, color: accent)
-                Image(systemName: showPending ? "chevron.up" : "chevron.down")
-                    .font(.system(size: 11)).foregroundColor(Theme.dim)
+                .padding(.horizontal, 16).padding(.vertical, 10)
+                .background(accent.opacity(0.06))
+                .overlay(Rectangle().frame(height: 0.5).foregroundColor(accent.opacity(0.2)), alignment: .bottom)
             }
-            .padding(.horizontal, 16).padding(.vertical, 10)
-            .background(accent.opacity(0.06))
-            .overlay(Rectangle().frame(height: 0.5).foregroundColor(accent.opacity(0.2)), alignment: .bottom)
-        }
-        .buttonStyle(.plain)
+            .buttonStyle(.plain)
 
-        if showPending {
-            VStack(spacing: 0) {
-                ForEach(pending) { contact in
-                    PendingContactRow(contact: contact, accent: accent) { accept in
-                        withAnimation {
-                            contacts.removeAll { $0.id == contact.id }
-                            if accept {
-                                var c = contact; c = Contact(
-                                    name: c.name, username: c.username,
-                                    isPendingRequest: false)
-                                contacts.append(c)
-                                toast.show("\(contact.name) добавлен", style: .success)
-                            } else {
-                                toast.show("Запрос отклонён", style: .error)
+            if showPending {
+                VStack(spacing: 0) {
+                    ForEach(pending) { contact in
+                        PendingContactRow(contact: contact, accent: accent) { accept in
+                            withAnimation {
+                                contacts.removeAll { $0.id == contact.id }
+                                if accept {
+                                    var c = contact; c = Contact(
+                                        name: c.name, username: c.username,
+                                        isPendingRequest: false)
+                                    contacts.append(c)
+                                    toast.show("\(contact.name) добавлен", style: .success)
+                                } else {
+                                    toast.show("Запрос отклонён", style: .error)
+                                }
                             }
                         }
+                        Divider().background(Theme.sep).padding(.leading, 72)
                     }
-                    Divider().background(Theme.sep).padding(.leading, 72)
                 }
+                .transition(.move(edge: .top).combined(with: .opacity))
             }
-            .transition(.move(edge: .top).combined(with: .opacity))
         }
     }
 
