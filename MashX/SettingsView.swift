@@ -4,6 +4,7 @@ struct SettingsView: View {
     @EnvironmentObject private var settings: SettingsStore
     @EnvironmentObject private var toast: ToastManager
     @EnvironmentObject private var auth: AuthManager
+    @EnvironmentObject private var themeManager: ThemeManager
 
     @State private var showSessions      = false
     @State private var showAccentPicker  = false
@@ -12,7 +13,7 @@ struct SettingsView: View {
     @State private var deletePassword    = ""
     @State private var expandedCards: Set<String> = []
 
-    private let accent = Theme.accentProfile
+    private var accent: Color { themeManager.accent }
 
     private let accentPresets: [(String, Color)] = [
         ("Фиолет",  Color(hex: "#7B5CFA")),
@@ -43,7 +44,12 @@ struct SettingsView: View {
             }
             .navigationBarHidden(true)
             .sheet(isPresented: $showSessions)     { SessionsView() }
-            .sheet(isPresented: $showAccentPicker) { AccentPickerSheet(presets: accentPresets, current: $settings.accentIndex) }
+            .sheet(isPresented: $showAccentPicker) {
+                AccentPickerSheet(presets: accentPresets, current: Binding(
+                    get: { themeManager.accentIndex },
+                    set: { themeManager.accentIndex = $0; settings.accentIndex = $0 }
+                ))
+            }
             .sheet(isPresented: $showDeleteConfirm) { deleteConfirmSheet }
             .alert("Удалить аккаунт?", isPresented: $showDeleteAlert) {
                 Button("Отмена", role: .cancel) {}
@@ -162,8 +168,8 @@ struct SettingsView: View {
                     Text("Акцентный цвет").font(.system(size: 15)).foregroundColor(Theme.text)
                     Spacer()
                     HStack(spacing: 4) {
-                        Circle().fill(accentPresets[settings.accentIndex].1).frame(width: 16, height: 16)
-                        Text(accentPresets[settings.accentIndex].0).font(.system(size: 13)).foregroundColor(Theme.muted)
+                        Circle().fill(accentPresets[themeManager.accentIndex].1).frame(width: 16, height: 16)
+                        Text(accentPresets[themeManager.accentIndex].0).font(.system(size: 13)).foregroundColor(Theme.muted)
                         Image(systemName: "chevron.right").font(.system(size: 11)).foregroundColor(Theme.dim)
                     }
                 }
@@ -176,17 +182,20 @@ struct SettingsView: View {
                     accentIcon("textformat.size")
                     Text("Размер шрифта").font(.system(size: 15)).foregroundColor(Theme.text)
                     Spacer()
-                    Text(["S", "M", "L"][settings.fontSizeIndex])
+                    Text(["S", "M", "L"][themeManager.fontSizeIndex])
                         .font(.system(size: 13, weight: .semibold)).foregroundColor(accent).frame(width: 20)
                 }
                 Slider(value: Binding(
-                    get: { Double(settings.fontSizeIndex) },
-                    set: { settings.fontSizeIndex = Int($0.rounded()) }
+                    get: { Double(themeManager.fontSizeIndex) },
+                    set: { themeManager.fontSizeIndex = Int($0.rounded()); settings.fontSizeIndex = themeManager.fontSizeIndex }
                 ), in: 0...2, step: 1).tint(accent).padding(.leading, 42)
             }
             .padding(.horizontal, 16).padding(.vertical, 12)
             rowDivider()
-            segmentRow("Язык", "globe", ["RU", "EN"], $settings.languageIndex)
+            segmentRow("Язык", "globe", ["RU", "EN"], Binding(
+                get: { themeManager.languageIndex },
+                set: { themeManager.languageIndex = $0; settings.languageIndex = $0 }
+            ))
         }.padding(.vertical, 4)
     }
 

@@ -1,4 +1,5 @@
 import SwiftUI
+import PhotosUI
 
 // MARK: - ProfileView
 struct ProfileView: View {
@@ -7,6 +8,9 @@ struct ProfileView: View {
     @EnvironmentObject private var auth: AuthManager
 
     @State private var showQR = false
+    @State private var photoItem: PhotosPickerItem? = nil
+    @State private var avatarImage: UIImage? = nil
+    @State private var isUploadingAvatar = false
     @FocusState private var field: ProfileField?
 
     private let accent = Theme.accentProfile
@@ -44,35 +48,49 @@ struct ProfileView: View {
         ZStack {
             ProfileGridBG().frame(height: 220).opacity(0.35)
             VStack(spacing: 12) {
-                ZStack(alignment: .bottomTrailing) {
-                    ZStack {
-                        Circle()
-                            .stroke(
-                                LinearGradient(colors: [accent, Color(hex: "#EC4899")],
-                                               startPoint: .topLeading, endPoint: .bottomTrailing),
-                                lineWidth: 2.5
-                            )
-                            .frame(width: 96, height: 96)
-                        RoundedRectangle(cornerRadius: 28)
-                            .fill(accent.opacity(0.18))
-                            .overlay(RoundedRectangle(cornerRadius: 28).stroke(accent.opacity(0.35), lineWidth: 0.5))
-                            .frame(width: 84, height: 84)
-                        Text(avatarInitials)
-                            .font(.system(size: 32, weight: .bold))
-                            .foregroundColor(accent)
+                PhotosPicker(selection: $photoItem, matching: .images) {
+                    ZStack(alignment: .bottomTrailing) {
+                        ZStack {
+                            Circle()
+                                .stroke(
+                                    LinearGradient(colors: [accent, Color(hex: "#EC4899")],
+                                                   startPoint: .topLeading, endPoint: .bottomTrailing),
+                                    lineWidth: 2.5
+                                )
+                                .frame(width: 96, height: 96)
+                            if let img = avatarImage {
+                                Image(uiImage: img)
+                                    .resizable().scaledToFill()
+                                    .frame(width: 84, height: 84)
+                                    .clipShape(RoundedRectangle(cornerRadius: 28))
+                            } else {
+                                RoundedRectangle(cornerRadius: 28)
+                                    .fill(accent.opacity(0.18))
+                                    .overlay(RoundedRectangle(cornerRadius: 28).stroke(accent.opacity(0.35), lineWidth: 0.5))
+                                    .frame(width: 84, height: 84)
+                                Text(avatarInitials)
+                                    .font(.system(size: 32, weight: .bold))
+                                    .foregroundColor(accent)
+                            }
+                            if isUploadingAvatar {
+                                RoundedRectangle(cornerRadius: 28)
+                                    .fill(Color.black.opacity(0.4))
+                                    .frame(width: 84, height: 84)
+                                ProgressView().tint(.white)
+                            }
+                        }
+                        ZStack {
+                            Circle().fill(accent).frame(width: 26, height: 26)
+                                .overlay(Circle().stroke(Theme.bg, lineWidth: 2))
+                            Image(systemName: "camera.fill")
+                                .font(.system(size: 11, weight: .bold)).foregroundColor(.white)
+                        }
+                        .offset(x: 4, y: 4)
                     }
-                    Button {
-                        toast.show("Изменить фото", style: .info, icon: "camera.fill")
-                    } label: {
-                        Image(systemName: "camera.fill")
-                            .font(.system(size: 11, weight: .bold))
-                            .foregroundColor(.white)
-                            .frame(width: 26, height: 26)
-                            .background(accent)
-                            .clipShape(Circle())
-                            .overlay(Circle().stroke(Theme.bg, lineWidth: 2))
-                    }
-                    .offset(x: 4, y: 4)
+                }
+                .onChange(of: photoItem) { item in
+                    guard let item else { return }
+                    Task { await uploadAvatar(item) }
                 }
 
                 VStack(spacing: 4) {
@@ -87,6 +105,17 @@ struct ProfileView: View {
                             .foregroundColor(Theme.muted)
                             .multilineTextAlignment(.center)
                             .padding(.horizontal, 40)
+                    }
+
+                    // Онлайн статус
+                    let isOnline = auth.currentUser?.is_online ?? false
+                    HStack(spacing: 5) {
+                        Circle()
+                            .fill(isOnline ? Color(hex: "#10B981") : Theme.dim)
+                            .frame(width: 8, height: 8)
+                            .overlay(Circle().stroke(Theme.bg, lineWidth: 1))
+                        Text(isOnline ? "онлайн" : "оффлайн")
+                            .font(.system(size: 12)).foregroundColor(isOnline ? Color(hex: "#10B981") : Theme.muted)
                     }
 
                     if let username = auth.currentUser?.username, !username.isEmpty {
@@ -110,6 +139,22 @@ struct ProfileView: View {
 
             }
             .padding(.top, 24).padding(.bottom, 20)
+        }
+    }
+
+    private func uploadAvatar(_ item: PhotosPickerItem) async {
+        guard let data = try? await item.loadTransferable(type: Data.self),
+              let uiImage = UIImage(data: data) else { return }
+        let compressed = uiImage.jpegData(compressionQuality: 0.8) ?? data
+        isUploadingAvatar = true
+        defer { isUploadingAvatar = false }
+        do {
+            let url = try await APIClient.shared.uploadAvatar(imageData: compressed, mimeType: "image/jpeg")
+            avatarImage = uiImage
+            _ = url
+            toast.show("Фото обновлено", style: .success, icon: "checkmark.circle.fill")
+        } catch {
+            toast.show("Ошибка загрузки фото", style: .error)
         }
     }
 
@@ -213,7 +258,8 @@ struct APISession: Decodable, Identifiable {
     let device_name: String
     let device_os: String
     let created_at: String
-    let is_current: Bool
+    let is_current: Bool?
+    var isCurrent: Bool { is_current ?? false }
 }
 
 struct SessionsView: View {
@@ -251,7 +297,7 @@ struct SessionsView: View {
                                 VStack(alignment: .leading, spacing: 3) {
                                     HStack(spacing: 6) {
                                         Text(session.device_name).font(.system(size: 15, weight: .semibold)).foregroundColor(Theme.text)
-                                        if session.is_current {
+                                        if session.isCurrent {
                                             Text("текущее")
                                                 .font(.system(size: 10, weight: .semibold)).foregroundColor(.white)
                                                 .padding(.horizontal, 6).padding(.vertical, 2)
@@ -262,7 +308,7 @@ struct SessionsView: View {
                                     Text(session.created_at).font(.system(size: 11)).foregroundColor(Theme.dim)
                                 }
                                 Spacer()
-                                if !session.is_current {
+                                if !session.isCurrent {
                                     Button {
                                         Task { await revokeSession(session) }
                                     } label: {

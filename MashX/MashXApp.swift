@@ -2,9 +2,10 @@ import SwiftUI
 
 @main
 struct MashXApp: App {
-    @StateObject private var settings    = SettingsStore.shared
+    @StateObject private var settings     = SettingsStore.shared
     @StateObject private var toastManager = ToastManager.shared
     @StateObject private var authManager  = AuthManager.shared
+    @StateObject private var themeManager = ThemeManager.shared
 
     var body: some Scene {
         WindowGroup {
@@ -12,6 +13,7 @@ struct MashXApp: App {
                 .environmentObject(settings)
                 .environmentObject(toastManager)
                 .environmentObject(authManager)
+                .environmentObject(themeManager)
                 .preferredColorScheme(.dark)
         }
     }
@@ -20,6 +22,7 @@ struct MashXApp: App {
 struct AppRootView: View {
     @EnvironmentObject private var auth: AuthManager
     @EnvironmentObject private var toast: ToastManager
+    @EnvironmentObject private var themeManager: ThemeManager
 
     var body: some View {
         ZStack {
