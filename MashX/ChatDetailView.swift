@@ -1,36 +1,83 @@
 import SwiftUI
+import Combine
 
+// MARK: - API Chat Message
+struct APIMessage: Identifiable, Equatable {
+    let id: String
+    var tempID: String?
+    let conversationID: String?
+    let groupID: String?
+    let senderID: String
+    let senderName: String
+    let senderAvatar: String
+    var content: String
+    let contentType: String
+    let replyToID: String?
+    var isDeleted: Bool
+    var deletedContent: String?
+    var isOutgoing: Bool
+    let createdAt: String
+
+    init(from ws: WSMessage, myID: String) {
+        id = ws.id
+        tempID = ws.temp_id
+        conversationID = ws.conversation_id
+        groupID = ws.group_id
+        senderID = ws.sender_id
+        senderName = ws.sender_display_name ?? ws.sender_username ?? "User"
+        senderAvatar = ws.sender_avatar_url ?? ""
+        content = ws.content
+        contentType = ws.content_type
+        replyToID = ws.reply_to_id
+        isDeleted = ws.is_deleted ?? false
+        deletedContent = ws.deleted_content
+        isOutgoing = ws.is_outgoing ?? (ws.sender_id == myID)
+        createdAt = ws.created_at
+    }
+}
+
+// MARK: - ChatDetailView
 struct ChatDetailView: View {
-    let chat: Chat
-    @EnvironmentObject private var settings: SettingsStore
+    // Для личного чата
+    var partnerID: String?
+    var partnerName: String
+    var partnerAvatar: String
+    var isPartnerOnline: Bool
+    // Для группового чата
+    var groupID: String?
+    var convID: String?
 
-    @State private var messages: [Message] = []
-    @State private var inputText    = ""
-    @State private var replyTarget: Message?     = nil
-    @State private var forwardMsg: Message?      = nil
-    @State private var showForward              = false
-    @State private var showMediaGallery         = false
-    @State private var showReactionFor: UUID?   = nil
-    @State private var showTyping               = false
-    @State private var isRecording              = false
-    @State private var recordSeconds            = 0
-    @State private var showSchedulePicker       = false
-    @State private var smartReplies: [String]   = []
+    @EnvironmentObject private var auth: AuthManager
+    @EnvironmentObject private var settings: SettingsStore
+    @EnvironmentObject private var toast: ToastManager
+
+    @State private var messages: [APIMessage] = []
+    @State private var inputText = ""
+    @State private var replyTo: APIMessage? = nil
+    @State private var showDeletedContent: String? = nil
+    @State private var isLoading = false
+    @State private var isTyping = false
+    @State private var typingTimer: Timer? = nil
+    @State private var showDeleteAlert = false
+    @State private var deleteTarget: APIMessage? = nil
     @FocusState private var inputFocused: Bool
     @Environment(\.dismiss) private var dismiss
-    private let accent = Theme.accentChats
 
-    private let reactionEmojis = ["👍","❤️","😂","🔥","😮","👏"]
+    private var wsManager: WebSocketManager { WebSocketManager.shared }
+    private let accent = Theme.accentChats
+    private var myID: String { auth.currentUser?.id ?? "" }
 
     var body: some View {
         ZStack {
             Theme.bg.ignoresSafeArea()
             VStack(spacing: 0) {
                 navBar
-                if let p = chat.pinnedMessage { pinnedBanner(p) }
-                messageList
-                if showTyping { typingRow.transition(.move(edge: .bottom).combined(with: .opacity)) }
-                if !smartReplies.isEmpty { smartReplyRow }
+                if isLoading && messages.isEmpty {
+                    Spacer(); ProgressView().tint(accent); Spacer()
+                } else {
+                    messageList
+                }
+                if isTyping { typingRow.transition(.move(edge: .bottom).combined(with: .opacity)) }
                 inputBar
             }
         }
@@ -42,40 +89,23 @@ struct ChatDetailView: View {
                     .foregroundColor(accent).fontWeight(.semibold)
             }
         }
-        .sheet(isPresented: $showMediaGallery) { MediaGalleryView(items: chat.mediaItems) }
-        .sheet(isPresented: $showForward) { ForwardSheet(message: forwardMsg) }
-        .sheet(isPresented: $showSchedulePicker) { ScheduleSheet { date in
-            toast("Отправка запланирована на \(date.formatted(date: .abbreviated, time: .shortened))")
-        }}
-        .onAppear {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
-                withAnimation { showTyping = true }
-                DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) {
-                    withAnimation { showTyping = false }
-                    if settings.smartReply {
-                        withAnimation { smartReplies = ["Окей!", "Понял, спасибо", "Давай обсудим"] }
-                    }
-                }
+        .alert("Удалить сообщение?", isPresented: $showDeleteAlert) {
+            Button("Отмена", role: .cancel) {}
+            Button("Удалить", role: .destructive) {
+                if let msg = deleteTarget { Task { await deleteMessage(msg) } }
             }
         }
-        .animation(.spring(response: 0.3, dampingFraction: 0.8), value: showTyping)
-        .animation(.spring(response: 0.3, dampingFraction: 0.8), value: smartReplies.count)
-    }
-
-    // MARK: - Pinned Banner
-    private func pinnedBanner(_ text: String) -> some View {
-        HStack(spacing: 8) {
-            Rectangle().fill(accent).frame(width: 3)
-            Image(systemName: "pin.fill").font(.system(size: 10)).foregroundColor(accent)
-            Text(text).font(.system(size: 12)).foregroundColor(Theme.muted).lineLimit(1)
-            Spacer()
-            Button {} label: {
-                Image(systemName: "xmark").font(.system(size: 10)).foregroundColor(Theme.dim)
-            }
+        .sheet(item: Binding(
+            get: { showDeletedContent.map { IdentifiableString(value: $0) } },
+            set: { showDeletedContent = $0?.value }
+        )) { item in
+            DeletedMessageSheet(content: item.value, accent: accent)
         }
-        .padding(.horizontal, 12).padding(.vertical, 6)
-        .background(accent.opacity(0.06))
-        .overlay(Rectangle().frame(height: 0.5).foregroundColor(accent.opacity(0.2)), alignment: .bottom)
+        .task { await loadMessages() }
+        .onReceive(wsManager.messageReceived) { handleNewMessage($0) }
+        .onReceive(wsManager.messageDeleted)  { handleDeletedMessage($0) }
+        .onReceive(wsManager.typingReceived)  { handleTyping($0) }
+        .animation(.spring(response: 0.3, dampingFraction: 0.8), value: isTyping)
     }
 
     // MARK: - NavBar
@@ -85,36 +115,19 @@ struct ChatDetailView: View {
                 Image(systemName: "chevron.left")
                     .font(.system(size: 17, weight: .semibold)).foregroundColor(accent)
             }
-            AvatarView(initials: chat.avatarInitials, size: 36, isOnline: chat.isOnline && !settings.offlineMode)
+            AvatarView(initials: String(partnerName.prefix(2)).uppercased(),
+                       size: 36, isOnline: isPartnerOnline && !settings.offlineMode)
             VStack(alignment: .leading, spacing: 1) {
-                HStack(spacing: 4) {
-                    Text(chat.name).font(.system(size: 15, weight: .semibold)).foregroundColor(Theme.text)
-                    if chat.isSecret {
-                        Image(systemName: "lock.fill").font(.system(size: 10)).foregroundColor(Theme.accentGroups)
-                    }
-                }
-                Text(chat.isOnline && !settings.offlineMode ? "онлайн" : chat.time)
+                Text(partnerName).font(.system(size: 15, weight: .semibold)).foregroundColor(Theme.text)
+                Text(isPartnerOnline && !settings.offlineMode ? "онлайн" : "оффлайн")
                     .font(.system(size: 12))
-                    .foregroundColor(chat.isOnline && !settings.offlineMode ? Theme.accentContacts : Theme.muted)
+                    .foregroundColor(isPartnerOnline && !settings.offlineMode ? Theme.accentContacts : Theme.muted)
             }
             Spacer()
-            HStack(spacing: 6) {
-                Button { showMediaGallery = true } label: {
-                    navBtn("photo.on.rectangle")
-                }
-                Button {} label: { navBtn("video.fill") }
-                Button {} label: { navBtn("phone.fill") }
-            }
         }
         .padding(.horizontal, 16).padding(.vertical, 10)
         .background(Theme.bgSecond)
         .overlay(Rectangle().frame(height: 0.5).foregroundColor(Theme.border), alignment: .bottom)
-    }
-
-    private func navBtn(_ icon: String) -> some View {
-        Image(systemName: icon)
-            .font(.system(size: 14, weight: .semibold)).foregroundColor(accent)
-            .frame(width: 30, height: 30).background(accent.opacity(0.1)).cornerRadius(7)
     }
 
     // MARK: - Message List
@@ -123,101 +136,33 @@ struct ChatDetailView: View {
             ScrollView(showsIndicators: false) {
                 LazyVStack(spacing: 4) {
                     ForEach(messages) { msg in
-                        MessageBubble(
-                            message: msg, accent: accent,
-                            sendReadReceipts: settings.sendReadReceipts
+                        MessageBubbleView(
+                            message: msg,
+                            myID: myID,
+                            accent: accent,
+                            onReply: { replyTo = msg },
+                            onDelete: { deleteTarget = msg; showDeleteAlert = true },
+                            onViewDeleted: { showDeletedContent = msg.deletedContent }
                         )
                         .id(msg.id)
-                        .contextMenu { messageContextMenu(msg) }
-                        .onLongPressGesture(minimumDuration: 0.35) {
-                            withAnimation(.spring(response: 0.25, dampingFraction: 0.7)) {
-                                showReactionFor = msg.id
-                            }
-                        }
-
-                        if showReactionFor == msg.id {
-                            reactionPicker(msg.id)
-                                .transition(.scale(scale: 0.8).combined(with: .opacity))
-                        }
                     }
                 }
                 .padding(.horizontal, 16).padding(.vertical, 12)
             }
+            .onChange(of: messages.count) { _ in
+                if let last = messages.last {
+                    withAnimation { proxy.scrollTo(last.id, anchor: .bottom) }
+                }
+            }
             .onAppear {
-                if let last = messages.last { proxy.scrollTo(last.id, anchor: .bottom) }
-            }
-        }
-    }
-
-    // MARK: - Reaction Picker
-    private func reactionPicker(_ msgId: UUID) -> some View {
-        HStack(spacing: 8) {
-            Spacer()
-            HStack(spacing: 4) {
-                ForEach(reactionEmojis, id: \.self) { emoji in
-                    Button {
-                        addReaction(emoji, to: msgId)
-                        withAnimation { showReactionFor = nil }
-                    } label: {
-                        Text(emoji).font(.system(size: 22))
-                            .frame(width: 38, height: 38)
-                            .background(Theme.card).cornerRadius(19)
-                    }
-                    .buttonStyle(.plain)
+                if let last = messages.last {
+                    proxy.scrollTo(last.id, anchor: .bottom)
                 }
-                Button {
-                    withAnimation { showReactionFor = nil }
-                } label: {
-                    Image(systemName: "xmark")
-                        .font(.system(size: 12, weight: .bold)).foregroundColor(Theme.muted)
-                        .frame(width: 38, height: 38)
-                        .background(Theme.card).cornerRadius(19)
-                }
-                .buttonStyle(.plain)
-            }
-            .padding(6)
-            .background(Theme.bgSecond)
-            .cornerRadius(24)
-            .overlay(RoundedRectangle(cornerRadius: 24).stroke(Theme.border, lineWidth: 0.5))
-        }
-        .padding(.horizontal, 16)
-    }
-
-    private func addReaction(_ emoji: String, to id: UUID) {
-        guard let i = messages.firstIndex(where: { $0.id == id }) else { return }
-        withAnimation {
-            var current = messages[i].reactions
-            current[emoji, default: 0] += 1
-            messages[i].reactions = current
-        }
-    }
-
-    // MARK: - Context Menu
-    @ViewBuilder
-    private func messageContextMenu(_ msg: Message) -> some View {
-        Button { replyTarget = msg } label: {
-            Label("Ответить", systemImage: "arrowshape.turn.up.left.fill")
-        }
-        Button {
-            forwardMsg = msg
-            showForward = true
-        } label: {
-            Label("Переслать", systemImage: "arrowshape.turn.up.right.fill")
-        }
-        if msg.isOutgoing {
-            Button { showSchedulePicker = true } label: {
-                Label("Запланировать", systemImage: "clock.fill")
             }
         }
-        Divider()
-        Button(role: .destructive) {
-            withAnimation { messages.removeAll { $0.id == msg.id } }
-        } label: {
-            Label("Удалить", systemImage: "trash.fill")
-        }
     }
 
-    // MARK: - Typing Row
+    // MARK: - Typing row
     private var typingRow: some View {
         HStack {
             TypingIndicator()
@@ -227,55 +172,30 @@ struct ChatDetailView: View {
         .padding(.horizontal, 16).padding(.bottom, 4)
     }
 
-    // MARK: - Smart Reply Row
-    private var smartReplyRow: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
-                ForEach(smartReplies, id: \.self) { reply in
-                    Button {
-                        inputText = reply
-                        withAnimation { smartReplies = [] }
-                    } label: {
-                        HStack(spacing: 4) {
-                            Image(systemName: "sparkles")
-                                .font(.system(size: 10)).foregroundColor(accent)
-                            Text(reply)
-                                .font(.system(size: 13)).foregroundColor(Theme.text)
-                        }
-                        .padding(.horizontal, 12).padding(.vertical, 7)
-                        .background(accent.opacity(0.1))
-                        .cornerRadius(16)
-                        .overlay(Capsule().stroke(accent.opacity(0.3), lineWidth: 0.5))
-                    }
-                    .buttonStyle(.plain)
-                }
-                Button {
-                    withAnimation { smartReplies = [] }
-                } label: {
-                    Image(systemName: "xmark")
-                        .font(.system(size: 11)).foregroundColor(Theme.dim)
-                        .padding(8)
-                }
-                .buttonStyle(.plain)
-            }
-            .padding(.horizontal, 16)
-        }
-        .padding(.vertical, 6)
-        .background(Theme.bgSecond)
-        .overlay(Rectangle().frame(height: 0.5).foregroundColor(Theme.border), alignment: .top)
-    }
-
     // MARK: - Input Bar
     private var inputBar: some View {
         VStack(spacing: 0) {
-            if let reply = replyTarget { replyPanel(reply) }
+            if let reply = replyTo {
+                HStack(spacing: 8) {
+                    Rectangle().fill(accent).frame(width: 3).cornerRadius(2)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(reply.isOutgoing ? "Вы" : reply.senderName)
+                            .font(.system(size: 11, weight: .semibold)).foregroundColor(accent)
+                        Text(reply.isDeleted ? "Удалённое сообщение" : reply.content)
+                            .font(.system(size: 12)).foregroundColor(Theme.muted).lineLimit(1)
+                    }
+                    Spacer()
+                    Button { replyTo = nil } label: {
+                        Image(systemName: "xmark").font(.system(size: 12)).foregroundColor(Theme.muted)
+                    }
+                }
+                .padding(.horizontal, 12).padding(.vertical, 7)
+                .background(Theme.card)
+                .overlay(Rectangle().frame(height: 0.5).foregroundColor(Theme.border), alignment: .top)
+                .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
 
             HStack(spacing: 10) {
-                Button {} label: {
-                    Image(systemName: "paperclip")
-                        .font(.system(size: 18)).foregroundColor(Theme.muted)
-                }
-
                 TextField("Сообщение...", text: $inputText, axis: .vertical)
                     .font(.system(size: 15)).foregroundColor(Theme.text).tint(accent)
                     .focused($inputFocused).lineLimit(1...5)
@@ -283,460 +203,328 @@ struct ChatDetailView: View {
                     .background(Theme.card).cornerRadius(20)
                     .overlay(RoundedRectangle(cornerRadius: 20)
                         .stroke(inputFocused ? accent.opacity(0.4) : Theme.border, lineWidth: 0.5))
-                    .animation(.easeInOut(duration: 0.15), value: inputFocused)
+                    .onChange(of: inputText) { _ in handleTypingInput() }
 
-                if inputText.isEmpty {
-                    Button {
-                        withAnimation(.spring(response: 0.2)) { isRecording.toggle() }
-                        if isRecording { toast("Запись...") }
-                        else { sendVoice() }
-                    } label: {
-                        Image(systemName: isRecording ? "stop.circle.fill" : "mic.fill")
-                            .font(.system(size: 18, weight: .semibold))
-                            .foregroundColor(isRecording ? .red : accent)
-                            .frame(width: 36, height: 36)
-                            .background((isRecording ? Color.red : accent).opacity(0.12))
-                            .clipShape(Circle())
-                            .animation(.spring(response: 0.2), value: isRecording)
-                    }
-                } else {
-                    Button { sendMessage() } label: {
-                        Image(systemName: "arrow.up")
-                            .font(.system(size: 15, weight: .bold)).foregroundColor(.white)
-                            .frame(width: 36, height: 36).background(accent).clipShape(Circle())
-                    }
-                    .transition(.scale.combined(with: .opacity))
+                Button { sendMessage() } label: {
+                    Image(systemName: "arrow.up")
+                        .font(.system(size: 15, weight: .bold)).foregroundColor(.white)
+                        .frame(width: 36, height: 36)
+                        .background(inputText.isEmpty ? Theme.dim : accent)
+                        .clipShape(Circle())
                 }
+                .disabled(inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                .animation(.easeInOut(duration: 0.15), value: inputText.isEmpty)
             }
             .padding(.horizontal, 16).padding(.vertical, 10)
         }
-        .background(Theme.bgSecond.overlay(Rectangle().frame(height: 0.5).foregroundColor(Theme.border), alignment: .top))
-        .animation(.spring(response: 0.3, dampingFraction: 0.8), value: replyTarget != nil)
-        .animation(.spring(response: 0.2), value: inputText.isEmpty)
-    }
-
-    private func replyPanel(_ msg: Message) -> some View {
-        HStack(spacing: 8) {
-            Rectangle().fill(accent).frame(width: 3).cornerRadius(2)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(msg.isOutgoing ? "Вы" : chat.name)
-                    .font(.system(size: 11, weight: .semibold)).foregroundColor(accent)
-                Text(msg.text.isEmpty ? "Голосовое сообщение" : msg.text)
-                    .font(.system(size: 12)).foregroundColor(Theme.muted).lineLimit(1)
-            }
-            Spacer()
-            Button { replyTarget = nil } label: {
-                Image(systemName: "xmark").font(.system(size: 12)).foregroundColor(Theme.muted)
-            }
-        }
-        .padding(.horizontal, 12).padding(.vertical, 7)
-        .background(Theme.card)
-        .overlay(Rectangle().frame(height: 0.5).foregroundColor(Theme.border), alignment: .top)
-        .transition(.move(edge: .bottom).combined(with: .opacity))
+        .background(Theme.bgSecond.overlay(
+            Rectangle().frame(height: 0.5).foregroundColor(Theme.border), alignment: .top))
     }
 
     // MARK: - Actions
+
+    private func loadMessages() async {
+        isLoading = true; defer { isLoading = false }
+        guard let partnerID else { return }
+        do {
+            let raw: [WSMessageRaw] = try await APIClient.shared.request(
+                url: "\(API.base)/chats/\(partnerID)/messages")
+            messages = raw.map { APIMessage(from: $0.toWSMessage(), myID: myID) }
+        } catch {}
+    }
+
     private func sendMessage() {
-        let trimmed = inputText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return }
-        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-            messages.append(Message(
-                text: trimmed, isOutgoing: true, time: timeNow,
-                status: .sending,
-                replyTo: replyTarget.map { ReplyPreview(senderName: $0.isOutgoing ? "Вы" : chat.name, text: $0.text) }
-            ))
-        }
-        inputText = ""; replyTarget = nil; smartReplies = []
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
-            if let i = messages.indices.last { messages[i].status = .sent }
-        }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
-            if let i = messages.indices.last { messages[i].status = .delivered }
+        let text = inputText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty else { return }
+
+        let tempID = UUID().uuidString
+        let now = ISO8601DateFormatter().string(from: Date())
+
+        // Оптимистично добавляем в список
+        let optimistic = APIMessage(
+            id: tempID, tempID: tempID,
+            conversationID: convID, groupID: groupID,
+            senderID: myID,
+            senderName: auth.currentUser?.display_name ?? "You",
+            senderAvatar: auth.currentUser?.avatar_url ?? "",
+            content: text, contentType: "text",
+            replyToID: replyTo?.id,
+            isDeleted: false, deletedContent: nil,
+            isOutgoing: true, createdAt: now)
+        messages.append(optimistic)
+
+        wsManager.sendMessage(
+            partnerID: partnerID, convID: convID, groupID: groupID,
+            content: text, replyToID: replyTo?.id, tempID: tempID)
+
+        inputText = ""
+        replyTo = nil
+        wsManager.sendTyping(partnerID: partnerID, convID: convID, groupID: groupID, typing: false)
+    }
+
+    private func deleteMessage(_ msg: APIMessage) async {
+        do {
+            _ = try await APIClient.shared.request(
+                url: "\(API.base)/messages/\(msg.id)", method: .DELETE) as EmptyResponse
+            if let i = messages.firstIndex(where: { $0.id == msg.id }) {
+                messages[i].isDeleted = true
+                messages[i].deletedContent = messages[i].content
+                messages[i].content = "Сообщение удалено"
+            }
+        } catch { toast.show("Ошибка удаления", style: .error) }
+    }
+
+    private func handleTypingInput() {
+        guard let partnerID else { return }
+        wsManager.sendTyping(partnerID: partnerID, convID: convID, groupID: groupID, typing: true)
+        typingTimer?.invalidate()
+        typingTimer = Timer.scheduledTimer(withTimeInterval: 2.5, repeats: false) { _ in
+            Task { @MainActor in
+                self.wsManager.sendTyping(partnerID: partnerID, convID: self.convID,
+                                          groupID: self.groupID, typing: false)
+            }
         }
     }
 
-    private func sendVoice() {
-        let wf: [Float] = (0..<14).map { _ in Float.random(in: 0.1...1.0) }
-        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-            messages.append(Message(
-                content: .voice(duration: 8, waveform: wf),
-                isOutgoing: true, time: timeNow, status: .sent
-            ))
+    private func handleNewMessage(_ ws: WSMessage) {
+        let isForThisChat: Bool
+        if let gid = groupID {
+            isForThisChat = ws.group_id == gid
+        } else if let pid = partnerID {
+            isForThisChat = ws.sender_id == pid || (ws.is_outgoing == true && ws.sender_id == myID)
+        } else {
+            isForThisChat = false
+        }
+        guard isForThisChat else { return }
+
+        // Заменяем оптимистичное сообщение реальным
+        if let tempID = ws.temp_id, let i = messages.firstIndex(where: { $0.id == tempID }) {
+            messages[i] = APIMessage(from: ws, myID: myID)
+        } else if !messages.contains(where: { $0.id == ws.id }) {
+            messages.append(APIMessage(from: ws, myID: myID))
+        }
+
+        // Отмечаем прочитанным если не наше
+        if ws.sender_id != myID {
+            wsManager.sendReadReceipts(messageIDs: [ws.id])
         }
     }
 
-    private func toast(_ msg: String) {
-        // local helper — uses ToastManager via env
+    private func handleDeletedMessage(_ ev: WSDeleteEvent) {
+        if let i = messages.firstIndex(where: { $0.id == ev.message_id }) {
+            messages[i].deletedContent = messages[i].content
+            messages[i].content = "Сообщение удалено"
+            messages[i].isDeleted = true
+        }
     }
 
-    private var timeNow: String {
-        let f = DateFormatter(); f.dateFormat = "HH:mm"; return f.string(from: Date())
+    private func handleTyping(_ ev: WSTypingEvent) {
+        guard ev.sender_id != myID else { return }
+        let relevant: Bool
+        if let gid = groupID { relevant = ev.group_id == gid }
+        else { relevant = ev.sender_id == partnerID }
+        guard relevant else { return }
+        withAnimation { isTyping = ev.typing }
+        if ev.typing {
+            typingTimer?.invalidate()
+            typingTimer = Timer.scheduledTimer(withTimeInterval: 4, repeats: false) { _ in
+                Task { @MainActor in withAnimation { self.isTyping = false } }
+            }
+        }
     }
 }
 
-// MARK: - MessageBubble
-struct MessageBubble: View {
-    let message: Message
+// MARK: - APIMessage full init
+extension APIMessage {
+    init(id: String, tempID: String?, conversationID: String?, groupID: String?,
+         senderID: String, senderName: String, senderAvatar: String,
+         content: String, contentType: String, replyToID: String?,
+         isDeleted: Bool, deletedContent: String?, isOutgoing: Bool, createdAt: String) {
+        self.id = id; self.tempID = tempID
+        self.conversationID = conversationID; self.groupID = groupID
+        self.senderID = senderID; self.senderName = senderName; self.senderAvatar = senderAvatar
+        self.content = content; self.contentType = contentType
+        self.replyToID = replyToID; self.isDeleted = isDeleted
+        self.deletedContent = deletedContent; self.isOutgoing = isOutgoing
+        self.createdAt = createdAt
+    }
+}
+
+// MARK: - Raw API response → WSMessage
+struct WSMessageRaw: Decodable {
+    let id: String
+    let conversation_id: String?
+    let group_id: String?
+    let sender_id: String
+    let sender: SenderInfo?
+    let content: String
+    let content_type: String
+    let reply_to_id: String?
+    let deleted_at: String?
+    let deleted_content: String?
+    let is_deleted: Bool?
+    let is_outgoing: Bool?
+    let created_at: String
+
+    struct SenderInfo: Decodable {
+        let id: String?
+        let username: String?
+        let display_name: String?
+        let avatar_url: String?
+    }
+
+    func toWSMessage() -> WSMessage {
+        WSMessage(
+            id: id, temp_id: nil,
+            conversation_id: conversation_id, group_id: group_id,
+            sender_id: sender_id,
+            sender_username: sender?.username,
+            sender_display_name: sender?.display_name,
+            sender_avatar_url: sender?.avatar_url,
+            content: content, content_type: content_type,
+            reply_to_id: reply_to_id,
+            deleted_at: deleted_at, deleted_content: deleted_content,
+            is_deleted: is_deleted, is_outgoing: is_outgoing,
+            created_at: created_at)
+    }
+}
+
+// MARK: - MessageBubbleView
+struct MessageBubbleView: View {
+    let message: APIMessage
+    let myID: String
     let accent: Color
-    var sendReadReceipts: Bool = true
+    let onReply: () -> Void
+    let onDelete: () -> Void
+    let onViewDeleted: () -> Void
 
     var body: some View {
-        VStack(alignment: message.isOutgoing ? .trailing : .leading, spacing: 3) {
-            // Forward label
-            if let fwd = message.forwardFrom {
-                HStack(spacing: 4) {
-                    if message.isOutgoing { Spacer() }
-                    Image(systemName: "arrowshape.turn.up.right.fill")
-                        .font(.system(size: 9)).foregroundColor(Theme.dim)
-                    Text("Переслано от \(fwd)").font(.system(size: 10)).foregroundColor(Theme.dim)
-                    if !message.isOutgoing { Spacer() }
-                }
-            }
+        HStack {
+            if message.isOutgoing { Spacer(minLength: 60) }
 
-            // Reply preview
-            if let reply = message.replyTo {
-                HStack {
-                    if message.isOutgoing { Spacer(minLength: 60) }
+            VStack(alignment: message.isOutgoing ? .trailing : .leading, spacing: 3) {
+                // Sender name (для групп)
+                if !message.isOutgoing && message.groupID != nil {
+                    Text(message.senderName)
+                        .font(.system(size: 11, weight: .semibold)).foregroundColor(accent)
+                        .padding(.leading, 4)
+                }
+
+                // Reply preview
+                if let replyID = message.replyToID, !replyID.isEmpty {
                     HStack(spacing: 5) {
                         Rectangle().fill(accent).frame(width: 2.5).cornerRadius(1)
-                        VStack(alignment: .leading, spacing: 1) {
-                            Text(reply.senderName)
-                                .font(.system(size: 10, weight: .semibold)).foregroundColor(accent)
-                            Text(reply.text)
-                                .font(.system(size: 11)).foregroundColor(Theme.muted).lineLimit(1)
-                        }
+                        Text("Ответ на сообщение")
+                            .font(.system(size: 11)).foregroundColor(Theme.muted).lineLimit(1)
                     }
-                    .padding(.horizontal, 8).padding(.vertical, 5)
+                    .padding(.horizontal, 8).padding(.vertical, 4)
                     .background(accent.opacity(0.08)).cornerRadius(8)
-                    if !message.isOutgoing { Spacer(minLength: 60) }
                 }
-            }
 
-            // Bubble
-            HStack {
-                if message.isOutgoing { Spacer(minLength: 60) }
-                bubbleBody
-                if !message.isOutgoing { Spacer(minLength: 60) }
-            }
-
-            // Reactions
-            if !message.reactions.isEmpty {
-                HStack {
-                    if message.isOutgoing { Spacer() }
-                    HStack(spacing: 4) {
-                        ForEach(message.reactions.sorted(by: { $0.key < $1.key }), id: \.key) { emoji, count in
-                            HStack(spacing: 2) {
-                                Text(emoji).font(.system(size: 12))
-                                if count > 1 {
-                                    Text("\(count)").font(.system(size: 10, weight: .semibold)).foregroundColor(accent)
-                                }
+                // Bubble
+                if message.isDeleted {
+                    HStack(spacing: 6) {
+                        Image(systemName: "trash.fill").font(.system(size: 11)).foregroundColor(Theme.dim)
+                        Text("Сообщение удалено").font(.system(size: 14)).foregroundColor(Theme.muted).italic()
+                        if message.deletedContent != nil {
+                            Button { onViewDeleted() } label: {
+                                Text("Просмотреть")
+                                    .font(.system(size: 11, weight: .semibold)).foregroundColor(accent)
                             }
-                            .padding(.horizontal, 6).padding(.vertical, 3)
-                            .background(accent.opacity(0.1)).cornerRadius(10)
+                            .buttonStyle(.plain)
                         }
                     }
-                    if !message.isOutgoing { Spacer() }
+                    .padding(.horizontal, 12).padding(.vertical, 8)
+                    .background(Theme.card).cornerRadius(16)
+                    .overlay(RoundedRectangle(cornerRadius: 16).stroke(Theme.border, lineWidth: 0.5))
+                } else {
+                    Text(message.content)
+                        .font(.system(size: 15))
+                        .foregroundColor(message.isOutgoing ? .white : Theme.text)
+                        .padding(.horizontal, 12).padding(.vertical, 8)
+                        .background(message.isOutgoing ? accent : Theme.card)
+                        .cornerRadius(message.isOutgoing ? 16 : 4, corners: .topLeft)
+                        .cornerRadius(message.isOutgoing ? 4 : 16, corners: .topRight)
+                        .cornerRadius(16, corners: .bottomLeft)
+                        .cornerRadius(16, corners: .bottomRight)
+                }
+
+                // Time
+                Text(formattedTime(message.createdAt))
+                    .font(.system(size: 10)).foregroundColor(Theme.dim)
+            }
+            .contextMenu {
+                Button { onReply() } label: { Label("Ответить", systemImage: "arrowshape.turn.up.left.fill") }
+                Button {
+                    UIPasteboard.general.string = message.content
+                } label: { Label("Копировать", systemImage: "doc.on.clipboard") }
+                if message.isOutgoing || message.groupID != nil {
+                    Divider()
+                    Button(role: .destructive) { onDelete() } label: {
+                        Label("Удалить", systemImage: "trash.fill")
+                    }
                 }
             }
 
-            // Time + status
-            HStack(spacing: 3) {
-                if message.isOutgoing { Spacer() }
-                Text(message.time).font(.system(size: 10)).foregroundColor(Theme.dim)
-                if message.isOutgoing {
-                    statusIcon(message.status, sendReadReceipts: sendReadReceipts)
-                }
-            }
+            if !message.isOutgoing { Spacer(minLength: 60) }
         }
         .transition(.asymmetric(
             insertion: .move(edge: message.isOutgoing ? .trailing : .leading).combined(with: .opacity),
-            removal: .opacity
-        ))
+            removal: .opacity))
     }
 
-    @ViewBuilder
-    private var bubbleBody: some View {
-        switch message.content {
-        case .text(let t):
-            Text(t)
-                .font(.system(size: 15)).foregroundColor(message.isOutgoing ? .white : Theme.text)
-                .padding(.horizontal, 12).padding(.vertical, 8)
-                .background(message.isOutgoing ? accent : Theme.card)
-                .cornerRadius(message.isOutgoing ? 16 : 4, corners: .topLeft)
-                .cornerRadius(message.isOutgoing ? 4 : 16, corners: .topRight)
-                .cornerRadius(16, corners: .bottomLeft).cornerRadius(16, corners: .bottomRight)
-
-        case .voice(let dur, let wf):
-            VoiceBubble(duration: dur, waveform: wf, accent: accent, isOutgoing: message.isOutgoing)
-
-        case .image(let name):
-            ZStack {
-                RoundedRectangle(cornerRadius: 12).fill(Theme.card).frame(width: 180, height: 140)
-                Image(systemName: "photo.fill").font(.system(size: 40)).foregroundColor(Theme.dim)
-                Text(name).font(.system(size: 10)).foregroundColor(Theme.muted).padding(.top, 60)
-            }
-
-        case .file(let name, let size):
-            HStack(spacing: 10) {
-                Image(systemName: "doc.fill").font(.system(size: 20)).foregroundColor(accent)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(name).font(.system(size: 13, weight: .medium)).foregroundColor(Theme.text).lineLimit(1)
-                    Text(size).font(.system(size: 11)).foregroundColor(Theme.muted)
-                }
-            }
-            .padding(12).background(Theme.card).cornerRadius(14)
+    private func formattedTime(_ str: String) -> String {
+        let formatters: [DateFormatter] = [
+            { let f = DateFormatter(); f.dateFormat = "yyyy-MM-dd'T'HH:mm:ssZ"; return f }(),
+            { let f = DateFormatter(); f.dateFormat = "yyyy-MM-dd HH:mm:ss"; return f }(),
+        ]
+        let out = DateFormatter(); out.dateFormat = "HH:mm"
+        for f in formatters {
+            if let d = f.date(from: str) { return out.string(from: d) }
         }
-    }
-
-    @ViewBuilder
-    private func statusIcon(_ s: MessageStatus, sendReadReceipts: Bool) -> some View {
-        switch s {
-        case .sending:
-            Image(systemName: "clock").font(.system(size: 9)).foregroundColor(Theme.dim)
-        case .sent:
-            Image(systemName: "checkmark").font(.system(size: 9)).foregroundColor(Theme.dim)
-        case .delivered:
-            Image(systemName: "checkmark.circle").font(.system(size: 10)).foregroundColor(Theme.dim)
-        case .read:
-            Image(systemName: "checkmark.circle.fill")
-                .font(.system(size: 10))
-                .foregroundColor(sendReadReceipts ? accent : Theme.dim)
-        }
+        return str.suffix(5).description
     }
 }
 
-// MARK: - VoiceBubble
-struct VoiceBubble: View {
-    let duration: Int
-    let waveform: [Float]
+// MARK: - Deleted Message Sheet
+struct DeletedMessageSheet: View {
+    let content: String
     let accent: Color
-    let isOutgoing: Bool
-    @State private var isPlaying = false
-    @State private var progress: Double = 0
-
-    var body: some View {
-        HStack(spacing: 10) {
-            Button {
-                withAnimation(.spring(response: 0.2)) { isPlaying.toggle() }
-                if isPlaying {
-                    DispatchQueue.main.asyncAfter(deadline: .now() + Double(duration)) {
-                        withAnimation { isPlaying = false; progress = 0 }
-                    }
-                }
-            } label: {
-                Image(systemName: isPlaying ? "pause.circle.fill" : "play.circle.fill")
-                    .font(.system(size: 28))
-                    .foregroundColor(isOutgoing ? .white : accent)
-            }
-            .buttonStyle(.plain)
-
-            VStack(alignment: .leading, spacing: 4) {
-                // Waveform
-                HStack(spacing: 2) {
-                    ForEach(waveform.indices, id: \.self) { i in
-                        RoundedRectangle(cornerRadius: 1)
-                            .fill(isOutgoing ? Color.white.opacity(Double(i) / Double(waveform.count) < progress ? 1 : 0.4) :
-                                    accent.opacity(Double(i) / Double(waveform.count) < progress ? 1 : 0.35))
-                            .frame(width: 3, height: max(4, CGFloat(waveform[i]) * 20))
-                    }
-                }
-                Text(isPlaying ? "\(Int((1 - progress) * Double(duration)))с" : "\(duration)с")
-                    .font(.system(size: 10)).foregroundColor(isOutgoing ? .white.opacity(0.7) : Theme.muted)
-            }
-        }
-        .padding(.horizontal, 12).padding(.vertical, 10)
-        .background(isOutgoing ? accent : Theme.card)
-        .cornerRadius(16)
-        .onReceive(Timer.publish(every: 0.1, on: .main, in: .common).autoconnect()) { _ in
-            guard isPlaying else { return }
-            withAnimation { progress = min(1, progress + 0.1 / Double(duration)) }
-        }
-    }
-}
-
-// MARK: - Media Gallery
-struct MediaGalleryView: View {
-    let items: [MediaItem]
     @Environment(\.dismiss) private var dismiss
-    private let cols = Array(repeating: GridItem(.flexible(), spacing: 2), count: 3)
-
-    var body: some View {
-        ZStack {
-            Theme.bg.ignoresSafeArea()
-            VStack(spacing: 0) {
-                HStack {
-                    Text("Медиафайлы")
-                        .font(.system(size: 18, weight: .bold)).foregroundColor(Theme.text)
-                    Spacer()
-                    Button { dismiss() } label: {
-                        Image(systemName: "xmark.circle.fill").font(.system(size: 22)).foregroundColor(Theme.muted)
-                    }
-                }
-                .padding(.horizontal, 20).padding(.vertical, 16)
-
-                if items.isEmpty {
-                    Spacer()
-                    VStack(spacing: 12) {
-                        Image(systemName: "photo.stack").font(.system(size: 40)).foregroundColor(Theme.dim)
-                        Text("Нет медиафайлов").font(.system(size: 15)).foregroundColor(Theme.muted)
-                    }
-                    Spacer()
-                } else {
-                    ScrollView(showsIndicators: false) {
-                        LazyVGrid(columns: cols, spacing: 2) {
-                            ForEach(items) { item in
-                                ZStack {
-                                    Rectangle()
-                                        .fill(Theme.card)
-                                        .aspectRatio(1, contentMode: .fill)
-                                    Image(systemName: item.type == .video ? "video.fill" : "photo.fill")
-                                        .font(.system(size: 24)).foregroundColor(Theme.dim)
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        .presentationDetents([.large])
-    }
-}
-
-// MARK: - Forward Sheet
-struct ForwardSheet: View {
-    let message: Message?
-    @Environment(\.dismiss) private var dismiss
-    @EnvironmentObject private var toast: ToastManager
-    @State private var contacts: [APIContact] = []
-    @State private var searchText = ""
-    @State private var isLoading = false
-    @State private var forwarded = false
-
-    private var filtered: [APIContact] {
-        let accepted = contacts.filter { $0.status == "accepted" }
-        guard !searchText.isEmpty else { return accepted }
-        let q = searchText.lowercased()
-        return accepted.filter {
-            ($0.user?.display_name.lowercased().contains(q) ?? false) ||
-            ($0.user?.username.lowercased().contains(q) ?? false)
-        }
-    }
-
-    var body: some View {
-        ZStack {
-            Theme.bg.ignoresSafeArea()
-            VStack(spacing: 0) {
-                Capsule().fill(Theme.dim).frame(width: 36, height: 4).padding(.top, 10).padding(.bottom, 8)
-
-                HStack {
-                    Text("Переслать в...")
-                        .font(.system(size: 18, weight: .bold)).foregroundColor(Theme.text)
-                    Spacer()
-                    Button { dismiss() } label: {
-                        Image(systemName: "xmark.circle.fill").font(.system(size: 22)).foregroundColor(Theme.muted)
-                    }
-                }
-                .padding(.horizontal, 20).padding(.bottom, 12)
-
-                SearchBar(text: $searchText, accentColor: Theme.accentChats)
-                    .padding(.horizontal, 16).padding(.bottom, 8)
-
-                if isLoading {
-                    Spacer()
-                    ProgressView().tint(Theme.accentChats)
-                    Spacer()
-                } else if filtered.isEmpty {
-                    Spacer()
-                    Text("Нет контактов").font(.system(size: 14)).foregroundColor(Theme.muted)
-                    Spacer()
-                } else {
-                    ScrollView(showsIndicators: false) {
-                        LazyVStack(spacing: 0) {
-                            ForEach(filtered) { c in
-                                let name = c.user?.display_name ?? c.user?.username ?? "User"
-                                let initials = String(name.prefix(2)).uppercased()
-                                let isOnline = c.user?.is_online ?? false
-
-                                Button {
-                                    forwardTo(c, name: name)
-                                } label: {
-                                    HStack(spacing: 12) {
-                                        AvatarView(initials: initials, size: 40, isOnline: isOnline)
-                                        VStack(alignment: .leading, spacing: 2) {
-                                            Text(name).font(.system(size: 15)).foregroundColor(Theme.text)
-                                            Text("@\(c.user?.username ?? "")").font(.system(size: 12)).foregroundColor(Theme.muted)
-                                        }
-                                        Spacer()
-                                        Image(systemName: "arrowshape.turn.up.right.fill")
-                                            .font(.system(size: 14)).foregroundColor(Theme.accentChats)
-                                    }
-                                    .padding(.horizontal, 20).padding(.vertical, 10)
-                                }
-                                .buttonStyle(.plain)
-                                Divider().background(Theme.sep).padding(.leading, 72)
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        .presentationDetents([.medium, .large])
-        .task { await loadContacts() }
-    }
-
-    private func loadContacts() async {
-        isLoading = true; defer { isLoading = false }
-        do { contacts = try await APIClient.shared.request(url: API.Contacts.list) }
-        catch {}
-    }
-
-    private func forwardTo(_ contact: APIContact, name: String) {
-        // Forward: копируем текст сообщения в буфер + уведомляем пользователя
-        // Реальная отправка требует чат-сервер (WebSocket/Tinode)
-        // Пока: копируем текст и показываем toast
-        if let msg = message, !msg.text.isEmpty {
-            UIPasteboard.general.string = msg.text
-            toast.show("Текст скопирован — отправьте \(name) вручную", style: .info, icon: "arrowshape.turn.up.right.fill")
-        } else {
-            toast.show("Перенаправлено для \(name)", style: .success, icon: "arrowshape.turn.up.right.fill")
-        }
-        dismiss()
-    }
-}
-
-// MARK: - Schedule Sheet
-struct ScheduleSheet: View {
-    var onSchedule: (Date) -> Void
-    @Environment(\.dismiss) private var dismiss
-    @State private var date = Date().addingTimeInterval(3600)
 
     var body: some View {
         ZStack {
             Theme.bg.ignoresSafeArea()
             VStack(spacing: 20) {
-                Text("Запланировать отправку")
-                    .font(.system(size: 18, weight: .bold)).foregroundColor(Theme.text)
-                    .padding(.top, 20)
-
-                DatePicker("", selection: $date, in: Date()...)
-                    .datePickerStyle(.wheel)
-                    .tint(Theme.accentChats)
-                    .colorScheme(.dark)
-                    .labelsHidden()
-
-                Button {
-                    onSchedule(date)
-                    dismiss()
-                } label: {
-                    Text("Запланировать")
-                        .font(.system(size: 16, weight: .semibold)).foregroundColor(.white)
-                        .frame(maxWidth: .infinity).padding(.vertical, 14)
-                        .background(Theme.accentChats).cornerRadius(14)
+                Capsule().fill(Theme.dim).frame(width: 36, height: 4).padding(.top, 10)
+                HStack(spacing: 8) {
+                    Image(systemName: "eye.fill").foregroundColor(accent)
+                    Text("Удалённое сообщение").font(.system(size: 18, weight: .bold)).foregroundColor(Theme.text)
                 }
-                .padding(.horizontal, 32)
-                .padding(.bottom, 30)
+                Text(content)
+                    .font(.system(size: 15)).foregroundColor(Theme.text)
+                    .padding(16).frame(maxWidth: .infinity, alignment: .leading)
+                    .background(Theme.card).cornerRadius(14)
+                    .overlay(RoundedRectangle(cornerRadius: 14).stroke(accent.opacity(0.3), lineWidth: 0.5))
+                    .padding(.horizontal, 24)
+                Text("Это сообщение было удалено")
+                    .font(.system(size: 12)).foregroundColor(Theme.muted)
+                Spacer()
+                Button { dismiss() } label: {
+                    Text("Закрыть")
+                        .font(.system(size: 16, weight: .semibold)).foregroundColor(.white)
+                        .frame(maxWidth: .infinity).frame(height: 50)
+                        .background(accent).cornerRadius(14)
+                }
+                .padding(.horizontal, 24).padding(.bottom, 30)
             }
         }
         .presentationDetents([.medium])
     }
+}
+
+// MARK: - Helpers
+struct IdentifiableString: Identifiable {
+    let id = UUID()
+    let value: String
 }

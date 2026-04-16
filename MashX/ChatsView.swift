@@ -1,31 +1,47 @@
 import SwiftUI
 
-// Чаты пока основаны на контактах из API — реальный чат требует WebSocket/Tinode
-// Показываем список контактов как "чаты", без фейковых данных
+struct APIChat: Decodable, Identifiable {
+    let id: String
+    let partner_id: String
+    let username: String
+    let display_name: String
+    let avatar_url: String
+    let is_online: Bool
+    let show_online: Bool
+    let last_message_id: String?
+    let last_content: String?
+    let last_type: String?
+    let last_sender_id: String?
+    let last_deleted: Bool?
+    let last_at: String?
+    let unread: Int
+}
+
 struct ChatsView: View {
-    @State private var contacts: [APIContact] = []
+    @State private var chats: [APIChat] = []
     @State private var searchText = ""
     @State private var filterIndex = 0
     @State private var isLoading = false
 
-    @EnvironmentObject private var settings: SettingsStore
     @EnvironmentObject private var toast: ToastManager
+    @EnvironmentObject private var settings: SettingsStore
+    @EnvironmentObject private var auth: AuthManager
     private let accent = Theme.accentChats
-    private let filters = ["Все", "Онлайн", "Избранные"]
+    private let filters = ["Все", "Онлайн", "Непрочит."]
 
-    private var filtered: [APIContact] {
-        let accepted = contacts.filter { $0.status == "accepted" }
-        var list: [APIContact]
+    private var filtered: [APIChat] {
+        var list = chats
         switch filterIndex {
-        case 1: list = accepted.filter { ($0.user?.is_online ?? false) && !settings.offlineMode }
-        case 2: list = accepted.filter { $0.is_favorite }
-        default: list = accepted
+        case 1: list = list.filter { $0.is_online && !settings.offlineMode }
+        case 2: list = list.filter { $0.unread > 0 }
+        default: break
         }
         guard !searchText.isEmpty else { return list }
         let q = searchText.lowercased()
         return list.filter {
-            ($0.user?.display_name.lowercased().contains(q) ?? false) ||
-            ($0.user?.username.lowercased().contains(q) ?? false)
+            $0.display_name.lowercased().contains(q) ||
+            $0.username.lowercased().contains(q) ||
+            ($0.last_content?.lowercased().contains(q) ?? false)
         }
     }
 
@@ -35,10 +51,9 @@ struct ChatsView: View {
                 Theme.bg.ignoresSafeArea()
                 VStack(spacing: 0) {
                     headerBar
-                    SearchBar(text: $searchText, placeholder: "Поиск по чатам...", accentColor: accent)
-                        .padding(.horizontal, 16)
+                    SearchBar(text: $searchText, placeholder: "Поиск по чатам...", accentColor: accent).padding(.horizontal, 16)
                     filterChips
-                    if isLoading && contacts.isEmpty {
+                    if isLoading && chats.isEmpty {
                         Spacer(); ProgressView().tint(accent); Spacer()
                     } else {
                         chatList
@@ -46,15 +61,18 @@ struct ChatsView: View {
                 }
             }
             .navigationBarHidden(true)
-            .task { await loadContacts() }
-            .refreshable { await loadContacts() }
+            .task { await loadChats() }
+            .refreshable { await loadChats() }
+            .onReceive(WebSocketManager.shared.messageReceived) { _ in
+                Task { await loadChats() }
+            }
         }
     }
 
-    private func loadContacts() async {
+    private func loadChats() async {
         isLoading = true; defer { isLoading = false }
-        do { contacts = try await APIClient.shared.request(url: API.Contacts.list) }
-        catch { toast.show("Ошибка загрузки", style: .error) }
+        do { chats = try await APIClient.shared.request(url: "\(API.base)/chats") }
+        catch {}
     }
 
     private var headerBar: some View {
@@ -64,10 +82,6 @@ struct ChatsView: View {
                 Text("Чаты").font(.system(size: 22, weight: .bold)).foregroundColor(Theme.text).kerning(-0.5)
             }
             Spacer()
-            Button { toast.show("Новый чат", style: .info, icon: "square.and.pencil") } label: {
-                Image(systemName: "square.and.pencil").font(.system(size: 15, weight: .semibold)).foregroundColor(accent)
-                    .frame(width: 34, height: 34).background(accent.opacity(0.12)).cornerRadius(8)
-            }
         }
         .padding(.horizontal, 16).padding(.top, 12).padding(.bottom, 8)
     }
@@ -80,50 +94,84 @@ struct ChatsView: View {
                         withAnimation(.spring(response: 0.2, dampingFraction: 0.8)) { filterIndex = i }
                     }
                 }
-            }
-            .padding(.horizontal, 16)
-        }
-        .padding(.vertical, 8)
+            }.padding(.horizontal, 16)
+        }.padding(.vertical, 8)
     }
 
     private var chatList: some View {
         ScrollView(showsIndicators: false) {
             LazyVStack(spacing: 0) {
-                ForEach(filtered) { c in
-                    let name = c.user?.display_name ?? c.user?.username ?? "User"
-                    let initials = String(name.prefix(2)).uppercased()
-                    let isOnline = (c.user?.is_online ?? false) && !settings.offlineMode
-
-                    HStack(spacing: 12) {
-                        AvatarView(initials: initials, size: 48, isOnline: isOnline)
-                        VStack(alignment: .leading, spacing: 3) {
-                            HStack {
-                                if c.is_favorite {
-                                    Image(systemName: "star.fill").font(.system(size: 9)).foregroundColor(accent)
-                                }
-                                Text(name).font(.system(size: 15, weight: .semibold)).foregroundColor(Theme.text).lineLimit(1)
-                                Spacer()
-                            }
-                            Text(isOnline ? "онлайн" : "@\(c.user?.username ?? "")")
-                                .font(.system(size: 13)).foregroundColor(isOnline ? accent : Theme.muted).lineLimit(1)
-                        }
-                        Image(systemName: "chevron.right").font(.system(size: 11)).foregroundColor(Theme.dim)
+                ForEach(filtered) { chat in
+                    NavigationLink(destination: ChatDetailView(
+                        partnerID: chat.partner_id,
+                        partnerName: chat.display_name,
+                        partnerAvatar: chat.avatar_url,
+                        isPartnerOnline: chat.is_online && chat.show_online
+                    )) {
+                        ChatRowView(chat: chat, accent: accent, myID: auth.currentUser?.id ?? "")
                     }
-                    .padding(.horizontal, 16).padding(.vertical, 10).contentShape(Rectangle())
-
+                    .buttonStyle(.plain)
                     Divider().background(Theme.sep).padding(.leading, 72)
                 }
-
                 if filtered.isEmpty && !isLoading {
                     VStack(spacing: 12) {
                         Image(systemName: "bubble.left.and.bubble.right")
                             .font(.system(size: 32)).foregroundColor(Theme.dim)
-                        Text(contacts.isEmpty ? "Нет контактов для чата" : "Ничего не найдено")
-                            .font(.system(size: 15)).foregroundColor(Theme.muted)
+                        Text("Нет чатов").font(.system(size: 15)).foregroundColor(Theme.muted)
+                        Text("Добавьте контакты и начните переписку")
+                            .font(.system(size: 13)).foregroundColor(Theme.dim)
+                            .multilineTextAlignment(.center)
                     }
                     .frame(maxWidth: .infinity).padding(.top, 60)
                 }
             }
         }
+    }
+}
+
+struct ChatRowView: View {
+    let chat: APIChat
+    let accent: Color
+    let myID: String
+
+    var body: some View {
+        HStack(spacing: 12) {
+            AvatarView(initials: String(chat.display_name.prefix(2)).uppercased(),
+                       size: 48, isOnline: chat.is_online && chat.show_online)
+            VStack(alignment: .leading, spacing: 3) {
+                HStack {
+                    Text(chat.display_name).font(.system(size: 15, weight: .semibold)).foregroundColor(Theme.text).lineLimit(1)
+                    Spacer()
+                    if let at = chat.last_at {
+                        Text(shortTime(at)).font(.system(size: 12)).foregroundColor(Theme.dim)
+                    }
+                }
+                HStack {
+                    if chat.last_sender_id == myID {
+                        Text("Вы: ").font(.system(size: 13)).foregroundColor(Theme.dim)
+                    }
+                    Text(chat.last_deleted == true ? "Сообщение удалено" : (chat.last_content ?? ""))
+                        .font(.system(size: 13))
+                        .foregroundColor(chat.last_deleted == true ? Theme.dim : Theme.muted)
+                        .italic(chat.last_deleted == true)
+                        .lineLimit(1)
+                    Spacer()
+                    if chat.unread > 0 {
+                        UnreadBadge(count: chat.unread, color: accent)
+                    }
+                }
+            }
+        }
+        .padding(.horizontal, 16).padding(.vertical, 10).contentShape(Rectangle())
+    }
+
+    private func shortTime(_ str: String) -> String {
+        let formats = ["yyyy-MM-dd'T'HH:mm:ssZ", "yyyy-MM-dd HH:mm:ss"]
+        let out = DateFormatter(); out.dateFormat = "HH:mm"
+        for fmt in formats {
+            let f = DateFormatter(); f.dateFormat = fmt
+            if let d = f.date(from: str) { return out.string(from: d) }
+        }
+        return ""
     }
 }

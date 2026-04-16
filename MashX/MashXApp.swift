@@ -36,6 +36,7 @@ struct AppRootView: View {
                 if splashDone {
                     AuthRootView()
                         .transition(.opacity)
+                        .onAppear { WebSocketManager.shared.disconnect() }
                 } else {
                     SplashView()
                         .transition(.opacity)
@@ -44,6 +45,7 @@ struct AppRootView: View {
                 if splashDone {
                     RootView()
                         .transition(.opacity)
+                        .onAppear { WebSocketManager.shared.connect() }
                 } else {
                     SplashView()
                         .transition(.opacity)
