@@ -75,9 +75,10 @@ struct ProfileView: View {
                 }
 
                 VStack(spacing: 4) {
-                    Text(settings.username.isEmpty ? "Ваше имя" : settings.username)
+                    let displayName = AuthManager.shared.currentUser?.display_name ?? settings.username
+                    Text(displayName.isEmpty ? "Ваше имя" : displayName)
                         .font(.system(size: 22, weight: .bold))
-                        .foregroundColor(settings.username.isEmpty ? Theme.muted : Theme.text)
+                        .foregroundColor(displayName.isEmpty ? Theme.muted : Theme.text)
 
                     if !settings.bio.isEmpty {
                         Text(settings.bio)
@@ -87,30 +88,25 @@ struct ProfileView: View {
                             .padding(.horizontal, 40)
                     }
 
-                    Button {
-                        UIPasteboard.general.string = "@mashx_user"
-                        toast.show("@mashx_user скопирован", style: .success, icon: "doc.on.clipboard")
-                    } label: {
-                        HStack(spacing: 4) {
-                            Image(systemName: "at").font(.system(size: 10, weight: .bold)).foregroundColor(accent)
-                            Text("mashx_user").font(.system(size: 12, weight: .semibold)).foregroundColor(accent)
+                    if let username = AuthManager.shared.currentUser?.username, !username.isEmpty {
+                        Button {
+                            UIPasteboard.general.string = "@\(username)"
+                            toast.show("@\(username) скопирован", style: .success, icon: "doc.on.clipboard")
+                        } label: {
+                            HStack(spacing: 4) {
+                                Image(systemName: "at").font(.system(size: 10, weight: .bold)).foregroundColor(accent)
+                                Text(username).font(.system(size: 12, weight: .semibold)).foregroundColor(accent)
+                            }
+                            .padding(.horizontal, 10).padding(.vertical, 4)
+                            .background(accent.opacity(0.12))
+                            .overlay(Capsule().stroke(accent.opacity(0.3), lineWidth: 0.5))
+                            .clipShape(Capsule())
                         }
-                        .padding(.horizontal, 10).padding(.vertical, 4)
-                        .background(accent.opacity(0.12))
-                        .overlay(Capsule().stroke(accent.opacity(0.3), lineWidth: 0.5))
-                        .clipShape(Capsule())
+                        .buttonStyle(.plain)
                     }
-                    .buttonStyle(.plain)
                 }
 
-                HStack(spacing: 0) {
-                    statCard("7",  "Чатов",     accent)
-                    Rectangle().fill(Theme.sep).frame(width: 0.5, height: 32)
-                    statCard("5",  "Групп",     Theme.accentGroups)
-                    Rectangle().fill(Theme.sep).frame(width: 0.5, height: 32)
-                    statCard("7",  "Контактов", Theme.accentContacts)
-                }
-                .padding(.horizontal, 24).padding(.top, 4)
+
             }
             .padding(.top, 24).padding(.bottom, 20)
         }
@@ -217,8 +213,7 @@ struct SessionsView: View {
     private let accent = Theme.accentProfile
 
     private let sessions: [(String, String, String, String, Bool)] = [
-        ("iPhone 15 Pro", "iOS 17.4",   "Москва, RU", "Сейчас",   true),
-        ("MacBook Pro",   "macOS 14.3", "Москва, RU", "3ч назад", false),
+        ("iPhone", "iOS", "", "Сейчас", true),
     ]
 
     var body: some View {
@@ -325,7 +320,7 @@ struct QRCardSheet: View {
                                 Image(systemName: "qrcode").font(.system(size: 140)).foregroundColor(Color(hex: "#0d0d14"))
                             }
                             VStack(spacing: 4) {
-                                Text("@mashx_user").font(.system(size: 16, weight: .semibold)).foregroundColor(accent)
+                                Text("@\(AuthManager.shared.currentUser?.username ?? "me")").font(.system(size: 16, weight: .semibold)).foregroundColor(accent)
                                 Text("Отсканируй чтобы написать").font(.system(size: 12)).foregroundColor(Theme.muted)
                             }
                         }
@@ -336,7 +331,7 @@ struct QRCardSheet: View {
                     HStack(spacing: 12) {
                         shareButton("square.and.arrow.up", "Поделиться") { toast.show("Ссылка скопирована", style: .success) }
                         shareButton("doc.on.clipboard", "Скопировать") {
-                            UIPasteboard.general.string = "https://mashx.app/@mashx_user"
+                            UIPasteboard.general.string = "https://mashx.app/@\(AuthManager.shared.currentUser?.username ?? "")"
                             toast.show("Ссылка скопирована", style: .success)
                         }
                     }
