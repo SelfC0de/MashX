@@ -11,6 +11,7 @@ enum API {
         static let logout      = "\(base)/auth/logout"
         static let logoutAll   = "\(base)/auth/logout-all"
         static let sessions    = "\(base)/auth/sessions"
+        static func revokeSession(_ id: String) -> String { "\(base)/auth/sessions/\(id)" }
     }
 
     enum User {
@@ -28,8 +29,6 @@ enum API {
         static func block(_ id: String)  -> String { "\(base)/contacts/\(id)/block" }
         static func favorite(_ id: String) -> String { "\(base)/contacts/\(id)/favorite" }
         static func remove(_ id: String) -> String { "\(base)/contacts/\(id)" }
-        static func unblock(_ id: String) -> String { "\(base)/contacts/\(id)/block" }
-        static let blocked = "\(base)/contacts/blocked"
     }
 
     enum Groups {
