@@ -1,0 +1,270 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {};
+	objectVersion = 56;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		56EAB9E151C5CECB0C4A002E = {isa = PBXBuildFile; fileRef = ACBA7C937D687CBFBD0BB5A2; };
+		0071372DBDCDFD361EAF6D01 = {isa = PBXBuildFile; fileRef = 1859F84C425C550802ECAEF1; };
+		2CD6AFA3078668B55337AD86 = {isa = PBXBuildFile; fileRef = 94A203B867456C028C46812A; };
+		F5348858FDA42CE56A90E822 = {isa = PBXBuildFile; fileRef = 1BA23E41E6FB201E18DE364E; };
+		2B2E5015107120F81464C51C = {isa = PBXBuildFile; fileRef = A54611CBE8A2F59A72B5E720; };
+		DE59DA60CCC356B82A7F2E8B = {isa = PBXBuildFile; fileRef = B65A812E1E2B893D6A5A2333; };
+		DD3BAEDD4DFDC47897938E1B = {isa = PBXBuildFile; fileRef = 3609AC168FEE085B0195FD43; };
+		EB8D29088C7FDC654F516F6F = {isa = PBXBuildFile; fileRef = BDE4F6413661B64D61909AA5; };
+		F9A3A456287D2E3EF16F69AD = {isa = PBXBuildFile; fileRef = C33BEAE9B8FDCA0F64A5E601; };
+		FB554BBA5B720CE4E0FE77A5 = {isa = PBXBuildFile; fileRef = 6096664423AF45B1E16D081D; };
+		6338DF8CA189A5950A40ACDE = {isa = PBXBuildFile; fileRef = 2B6D6BECF370DADA92CBECC4; };
+		174E68B32A738A107E3E37F1 = {isa = PBXBuildFile; fileRef = 4FB4228BB68CBB677745CD14; };
+		8E177839F04BF3A43B822FD3 = {isa = PBXBuildFile; fileRef = 9932D2ED3775C14F438CFFE3; };
+		2BA70B5B4A7DD51B6C0EED5A = {isa = PBXBuildFile; fileRef = 4700C0610BF5264BFE7738DE; };
+		C0564DCE1C4B5468576F2864 = {isa = PBXBuildFile; fileRef = 8063ADC05E3A781E5C6FD23A; };
+		6AD225692463310CA0531395 = {isa = PBXBuildFile; fileRef = 34755658510E362E0104BB53; };
+		73DCBBCB705F05147C195749 = {isa = PBXBuildFile; fileRef = 2C2AA2A1951F857935659F24; };
+		BB9EE2086AE042EBBBA6C4B9 = {isa = PBXBuildFile; fileRef = 5BBACC9EFDD6073D3C1C17B9; };
+		AEBC885DBE996355E77E8287 = {isa = PBXBuildFile; fileRef = 9A771BFD50A3B6E441B60C73; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		ACBA7C937D687CBFBD0BB5A2 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = MashXApp.swift; path = MashX/MashXApp.swift; sourceTree = "<group>"; };
+		1859F84C425C550802ECAEF1 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = Theme.swift; path = MashX/Theme.swift; sourceTree = "<group>"; };
+		94A203B867456C028C46812A = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = SettingsStore.swift; path = MashX/SettingsStore.swift; sourceTree = "<group>"; };
+		1BA23E41E6FB201E18DE364E = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = ToastManager.swift; path = MashX/ToastManager.swift; sourceTree = "<group>"; };
+		A54611CBE8A2F59A72B5E720 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = Models.swift; path = MashX/Models.swift; sourceTree = "<group>"; };
+		B65A812E1E2B893D6A5A2333 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = RootView.swift; path = MashX/RootView.swift; sourceTree = "<group>"; };
+		3609AC168FEE085B0195FD43 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = Components.swift; path = MashX/Components.swift; sourceTree = "<group>"; };
+		BDE4F6413661B64D61909AA5 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = ChatsView.swift; path = MashX/ChatsView.swift; sourceTree = "<group>"; };
+		C33BEAE9B8FDCA0F64A5E601 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = ChatDetailView.swift; path = MashX/ChatDetailView.swift; sourceTree = "<group>"; };
+		6096664423AF45B1E16D081D = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = ChannelsView.swift; path = MashX/ChannelsView.swift; sourceTree = "<group>"; };
+		2B6D6BECF370DADA92CBECC4 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = ContactsView.swift; path = MashX/ContactsView.swift; sourceTree = "<group>"; };
+		4FB4228BB68CBB677745CD14 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = GroupsView.swift; path = MashX/GroupsView.swift; sourceTree = "<group>"; };
+		9932D2ED3775C14F438CFFE3 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = ProfileView.swift; path = MashX/ProfileView.swift; sourceTree = "<group>"; };
+		4700C0610BF5264BFE7738DE = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = NetworkConfig.swift; path = MashX/NetworkConfig.swift; sourceTree = "<group>"; };
+		8063ADC05E3A781E5C6FD23A = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = KeychainService.swift; path = MashX/KeychainService.swift; sourceTree = "<group>"; };
+		34755658510E362E0104BB53 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = APIClient.swift; path = MashX/APIClient.swift; sourceTree = "<group>"; };
+		2C2AA2A1951F857935659F24 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AuthManager.swift; path = MashX/AuthManager.swift; sourceTree = "<group>"; };
+		5BBACC9EFDD6073D3C1C17B9 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AuthView.swift; path = MashX/AuthView.swift; sourceTree = "<group>"; };
+		9A771BFD50A3B6E441B60C73 = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; name = Assets.xcassets; path = MashX/Assets.xcassets; sourceTree = "<group>"; };
+		E724DA5E7098E3D71A3D56B5 = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; name = Info.plist; path = MashX/Info.plist; sourceTree = "<group>"; };
+		FC8DC47E0ECBEE93B17C3200 = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = MashX.app; sourceTree = BUILT_PRODUCTS_DIR; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		CEBC5E3D96F53E334B46B391 = {
+  		isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		FCC254230E4976C27A71D163 = {
+			isa = PBXGroup;
+			children = (
+				CA26E2FA7F8A657E1F90FC77,
+				FC8DC47E0ECBEE93B17C3200,
+			);
+			sourceTree = "<group>";
+		};
+		CA26E2FA7F8A657E1F90FC77 = {
+			isa = PBXGroup;
+			children = (
+				ACBA7C937D687CBFBD0BB5A2,
+				1859F84C425C550802ECAEF1,
+				94A203B867456C028C46812A,
+				1BA23E41E6FB201E18DE364E,
+				A54611CBE8A2F59A72B5E720,
+				B65A812E1E2B893D6A5A2333,
+				3609AC168FEE085B0195FD43,
+				BDE4F6413661B64D61909AA5,
+				C33BEAE9B8FDCA0F64A5E601,
+				6096664423AF45B1E16D081D,
+				2B6D6BECF370DADA92CBECC4,
+				4FB4228BB68CBB677745CD14,
+				9932D2ED3775C14F438CFFE3,
+				4700C0610BF5264BFE7738DE,
+				8063ADC05E3A781E5C6FD23A,
+				34755658510E362E0104BB53,
+				2C2AA2A1951F857935659F24,
+				5BBACC9EFDD6073D3C1C17B9,
+				9A771BFD50A3B6E441B60C73,
+				E724DA5E7098E3D71A3D56B5,
+			);
+			name = MashX;
+			path = MashX;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		79B27CE86872C42450929648 = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 23686A16963C33C1DAC80936;
+			buildPhases = (
+				1B6B53C62E1CC7C2B8DF4E72,
+				59F6CC1DADEF548D5056E956,
+				CEBC5E3D96F53E334B46B391,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = MashX;
+			productName = MashX;
+			productReference = FC8DC47E0ECBEE93B17C3200;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		4E4DEBD5DDCDC7D6071FF8B1 /* Project object */ = {
+			isa = PBXProject;
+			buildConfigurationList = A4CBBF228D47E1395B328043;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = ru;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				ru,
+				Base,
+			);
+			mainGroup = FCC254230E4976C27A71D163;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				79B27CE86872C42450929648,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		59F6CC1DADEF548D5056E956 = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				AEBC885DBE996355E77E8287,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		1B6B53C62E1CC7C2B8DF4E72 = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				56EAB9E151C5CECB0C4A002E /* MashXApp.swift in Sources */,
+				0071372DBDCDFD361EAF6D01 /* Theme.swift in Sources */,
+				2CD6AFA3078668B55337AD86 /* SettingsStore.swift in Sources */,
+				F5348858FDA42CE56A90E822 /* ToastManager.swift in Sources */,
+				2B2E5015107120F81464C51C /* Models.swift in Sources */,
+				DE59DA60CCC356B82A7F2E8B /* RootView.swift in Sources */,
+				DD3BAEDD4DFDC47897938E1B /* Components.swift in Sources */,
+				EB8D29088C7FDC654F516F6F /* ChatsView.swift in Sources */,
+				F9A3A456287D2E3EF16F69AD /* ChatDetailView.swift in Sources */,
+				FB554BBA5B720CE4E0FE77A5 /* ChannelsView.swift in Sources */,
+				6338DF8CA189A5950A40ACDE /* ContactsView.swift in Sources */,
+				174E68B32A738A107E3E37F1 /* GroupsView.swift in Sources */,
+				8E177839F04BF3A43B822FD3 /* ProfileView.swift in Sources */,
+				2BA70B5B4A7DD51B6C0EED5A /* NetworkConfig.swift in Sources */,
+				C0564DCE1C4B5468576F2864 /* KeychainService.swift in Sources */,
+				6AD225692463310CA0531395 /* APIClient.swift in Sources */,
+				73DCBBCB705F05147C195749 /* AuthManager.swift in Sources */,
+				BB9EE2086AE042EBBBA6C4B9 /* AuthView.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		791C22F85F004D465F1EC0BF /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSET_CATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CODE_SIGN_IDENTITY = "";
+				CODE_SIGNING_ALLOWED = NO;
+				CODE_SIGNING_REQUIRED = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				INFOPLIST_FILE = MashX/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.selfcode.mashx;
+				PRODUCT_NAME = $(TARGET_NAME);
+				SDKROOT = iphoneos;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Debug;
+		};
+		9C2F5E32932377477455DC6E /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSET_CATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CODE_SIGN_IDENTITY = "";
+				CODE_SIGNING_ALLOWED = NO;
+				CODE_SIGNING_REQUIRED = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				INFOPLIST_FILE = MashX/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.selfcode.mashx;
+				PRODUCT_NAME = $(TARGET_NAME);
+				SDKROOT = iphoneos;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Release;
+		};
+		127ABD791F25F94F0D807B4A /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_IDENTITY = "";
+				CODE_SIGNING_ALLOWED = NO;
+				CODE_SIGNING_REQUIRED = NO;
+			};
+			name = Debug;
+		};
+		9BE786772BEAB21C3CCE0C70 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_IDENTITY = "";
+				CODE_SIGNING_ALLOWED = NO;
+				CODE_SIGNING_REQUIRED = NO;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		23686A16963C33C1DAC80936 = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				791C22F85F004D465F1EC0BF /* Debug */,
+				9C2F5E32932377477455DC6E /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		A4CBBF228D47E1395B328043 = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				127ABD791F25F94F0D807B4A /* Debug */,
+				9BE786772BEAB21C3CCE0C70 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 4E4DEBD5DDCDC7D6071FF8B1 /* Project object */;
+}
