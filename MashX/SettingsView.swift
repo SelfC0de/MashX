@@ -142,22 +142,22 @@ struct SettingsView: View {
 
     private var privacyContent: some View {
         VStack(spacing: 0) {
-            // Единый тумблер: вкл = онлайн виден, выкл = оффлайн режим
+            // Оффлайн режим: вкл (справа) = скрыт, выкл (слева) = онлайн
             HStack(spacing: 14) {
-                accentIcon(settings.showOnlineStatus ? "circle.fill" : "eye.slash.fill")
+                accentIcon(settings.offlineMode ? "eye.slash.fill" : "circle.fill")
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(settings.showOnlineStatus ? "Онлайн" : "Оффлайн")
+                    Text("Оффлайн режим")
                         .font(.system(size: 15)).foregroundColor(Theme.text)
-                    Text(settings.showOnlineStatus ? "Статус виден другим" : "Статус скрыт везде")
+                    Text(settings.offlineMode ? "Статус скрыт везде" : "Статус виден другим")
                         .font(.system(size: 12)).foregroundColor(Theme.muted)
                 }
                 Spacer()
                 Toggle("", isOn: Binding(
-                    get: { settings.showOnlineStatus },
+                    get: { settings.offlineMode },
                     set: { val in
-                        settings.showOnlineStatus = val
-                        settings.offlineMode = !val
-                        Task { await auth.updateOnlineStatus(val) }
+                        settings.offlineMode = val
+                        settings.showOnlineStatus = !val
+                        Task { await auth.updateOnlineStatus(!val) }
                     }
                 )).tint(accent).labelsHidden()
             }
