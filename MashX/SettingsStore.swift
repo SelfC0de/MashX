@@ -6,6 +6,7 @@ final class SettingsStore: ObservableObject {
 
     @AppStorage("notifications_enabled") var notificationsEnabled: Bool  = true
     @AppStorage("sound_enabled")         var soundEnabled: Bool          = true
+    @AppStorage("splash_sound_enabled")  var splashSoundEnabled: Bool    = true
     @AppStorage("show_online_status")    var showOnlineStatus: Bool      = true
     @AppStorage("send_read_receipts")    var sendReadReceipts: Bool      = true
     @AppStorage("offline_mode")          var offlineMode: Bool           = false
