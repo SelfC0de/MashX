@@ -54,8 +54,8 @@ struct ContactsView: View {
     }
 
     private var favorites: [APIContact] { filtered.filter { $0.is_favorite } }
-    private var online:    [APIContact] { filtered.filter { ($0.user?.is_online ?? false) && !$0.is_favorite } }
-    private var offline:   [APIContact] { filtered.filter { !($0.user?.is_online ?? false) && !$0.is_favorite } }
+    private var online:    [APIContact] { filtered.filter { ($0.user?.is_online ?? false) && !$0.is_favorite && !settings.offlineMode } }
+    private var offline:   [APIContact] { filtered.filter { (!($0.user?.is_online ?? false) || settings.offlineMode) && !$0.is_favorite } }
 
     var body: some View {
         NavigationStack {
@@ -276,7 +276,7 @@ struct ContactsView: View {
     private func contactRow(_ c: APIContact) -> some View {
         let name = c.user?.display_name ?? c.user?.username ?? "Unknown"
         let initials = String(name.prefix(2)).uppercased()
-        let isOnline = c.user?.is_online ?? false
+        let isOnline = (c.user?.is_online ?? false) && !settings.offlineMode
 
         HStack(spacing: 12) {
             AvatarView(initials: initials, size: 46, isOnline: isOnline)

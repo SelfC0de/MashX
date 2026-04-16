@@ -8,6 +8,7 @@ struct ChatsView: View {
     @State private var filterIndex = 0
     @State private var isLoading = false
 
+    @EnvironmentObject private var settings: SettingsStore
     @EnvironmentObject private var toast: ToastManager
     private let accent = Theme.accentChats
     private let filters = ["Все", "Онлайн", "Избранные"]
@@ -16,7 +17,7 @@ struct ChatsView: View {
         let accepted = contacts.filter { $0.status == "accepted" }
         var list: [APIContact]
         switch filterIndex {
-        case 1: list = accepted.filter { $0.user?.is_online ?? false }
+        case 1: list = accepted.filter { ($0.user?.is_online ?? false) && !settings.offlineMode }
         case 2: list = accepted.filter { $0.is_favorite }
         default: list = accepted
         }
@@ -91,7 +92,7 @@ struct ChatsView: View {
                 ForEach(filtered) { c in
                     let name = c.user?.display_name ?? c.user?.username ?? "User"
                     let initials = String(name.prefix(2)).uppercased()
-                    let isOnline = c.user?.is_online ?? false
+                    let isOnline = (c.user?.is_online ?? false) && !settings.offlineMode
 
                     HStack(spacing: 12) {
                         AvatarView(initials: initials, size: 48, isOnline: isOnline)

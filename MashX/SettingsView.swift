@@ -142,9 +142,26 @@ struct SettingsView: View {
 
     private var privacyContent: some View {
         VStack(spacing: 0) {
-            toggleRow("Статус онлайн",     "circle.fill",                       $settings.showOnlineStatus)
-            rowDivider()
-            toggleRow("Оффлайн режим",     "eye.slash.fill",                    $settings.offlineMode)
+            // Единый тумблер: вкл = онлайн виден, выкл = оффлайн режим
+            HStack(spacing: 14) {
+                accentIcon(settings.showOnlineStatus ? "circle.fill" : "eye.slash.fill")
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(settings.showOnlineStatus ? "Онлайн" : "Оффлайн")
+                        .font(.system(size: 15)).foregroundColor(Theme.text)
+                    Text(settings.showOnlineStatus ? "Статус виден другим" : "Статус скрыт везде")
+                        .font(.system(size: 12)).foregroundColor(Theme.muted)
+                }
+                Spacer()
+                Toggle("", isOn: Binding(
+                    get: { settings.showOnlineStatus },
+                    set: { val in
+                        settings.showOnlineStatus = val
+                        settings.offlineMode = !val
+                        Task { await auth.updateOnlineStatus(val) }
+                    }
+                )).tint(accent).labelsHidden()
+            }
+            .padding(.horizontal, 16).padding(.vertical, 10)
             rowDivider()
             toggleRow("Отчёт о прочтении", "checkmark.circle.fill",             $settings.sendReadReceipts)
             rowDivider()
