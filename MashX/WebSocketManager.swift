@@ -1,5 +1,6 @@
 import Foundation
 import Combine
+import UIKit
 
 // MARK: - WS Event Models
 
@@ -126,6 +127,13 @@ final class WebSocketManager: ObservableObject {
         case "message":
             if let m = try? JSONDecoder().decode(WSMessage.self, from: dataBytes) {
                 messageReceived.send(m)
+                // Звук и уведомление только для входящих
+                if m.is_outgoing != true {
+                    SoundManager.shared.playMessageIn()
+                    let sender = m.sender_display_name ?? m.sender_username ?? "MashX"
+                    let text = m.is_deleted == true ? "Сообщение удалено" : m.content
+                    SoundManager.shared.sendLocalNotification(title: sender, body: text)
+                }
             }
         case "message_delete":
             if let d = try? JSONDecoder().decode(WSDeleteEvent.self, from: dataBytes) {

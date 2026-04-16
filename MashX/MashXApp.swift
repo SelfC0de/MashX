@@ -45,7 +45,10 @@ struct AppRootView: View {
                 if splashDone {
                     RootView()
                         .transition(.opacity)
-                        .onAppear { WebSocketManager.shared.connect() }
+                        .onAppear {
+                            WebSocketManager.shared.connect()
+                            SoundManager.shared.requestPermission()
+                        }
                 } else {
                     SplashView()
                         .transition(.opacity)
@@ -100,6 +103,7 @@ struct SplashView: View {
                 scale = 1.0
                 opacity = 1.0
             }
+            SoundManager.shared.playSplash()
         }
     }
 }

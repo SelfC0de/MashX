@@ -134,9 +134,11 @@ struct SettingsView: View {
     // MARK: - Card contents
     private var notificationsContent: some View {
         VStack(spacing: 0) {
-            toggleRow("Уведомления", "bell.fill",           $settings.notificationsEnabled)
+            toggleRow("Уведомления",        "bell.fill",           $settings.notificationsEnabled)
             rowDivider()
-            toggleRow("Звуки",      "speaker.wave.2.fill",  $settings.soundEnabled)
+            toggleRow("Звуки",              "speaker.wave.2.fill", $settings.soundEnabled)
+            rowDivider()
+            toggleRow("Звук приветствия",   "music.note",          $settings.splashSoundEnabled)
         }.padding(.vertical, 4)
     }
 
