@@ -194,6 +194,8 @@ final class AuthManager: ObservableObject {
 
     private func syncSettings(from user: APIUser) {
         let s = SettingsStore.shared
+        let key = "settings_synced_\(user.id)"
+        guard !UserDefaults.standard.bool(forKey: key) else { return }
         s.notificationsEnabled = user.notifications
         s.soundEnabled         = user.sound_enabled
         s.showOnlineStatus     = user.show_online
@@ -204,6 +206,27 @@ final class AuthManager: ObservableObject {
         s.accentIndex          = user.accent_index
         s.fontSizeIndex        = user.font_size_index
         s.languageIndex        = user.language_index
+        UserDefaults.standard.set(true, forKey: key)
+    }
+
+    func updateOnlineStatus(_ online: Bool) async {
+        struct Patch: Encodable { let show_online: Bool }
+        do {
+            _ = try await APIClient.shared.request(
+                url: API.User.me, method: .PATCH,
+                body: Patch(show_online: online)) as EmptyResponse
+            if let u = currentUser {
+                currentUser = APIUser(
+                    id: u.id, username: u.username, display_name: u.display_name,
+                    avatar_url: u.avatar_url, bio: u.bio,
+                    is_online: online, show_online: online,
+                    send_receipts: u.send_receipts, antispam: u.antispam,
+                    smart_reply: u.smart_reply, e2e_enabled: u.e2e_enabled,
+                    notifications: u.notifications, sound_enabled: u.sound_enabled,
+                    accent_index: u.accent_index, font_size_index: u.font_size_index,
+                    language_index: u.language_index)
+            }
+        } catch {}
     }
 }
 
