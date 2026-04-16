@@ -198,7 +198,7 @@ final class AuthManager: ObservableObject {
         guard !UserDefaults.standard.bool(forKey: key) else { return }
         s.notificationsEnabled = user.notifications
         s.soundEnabled         = user.sound_enabled
-        s.showOnlineStatus     = user.show_online
+        // showOnlineStatus и offlineMode — только локальные, не перезаписываем с сервера
         s.sendReadReceipts     = user.send_receipts
         s.antispam             = user.antispam
         s.smartReply           = user.smart_reply
