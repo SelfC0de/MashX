@@ -107,7 +107,7 @@ final class WebSocketManager: ObservableObject {
                 if case .string(let text) = msg {
                     Task { @MainActor in self.handle(text) }
                 }
-                self.receiveLoop()
+                Task { @MainActor in self.receiveLoop() }
             case .failure:
                 Task { @MainActor in self.handleDisconnect() }
             }
@@ -188,7 +188,9 @@ final class WebSocketManager: ObservableObject {
     private func startPing() {
         pingTimer?.invalidate()
         pingTimer = Timer.scheduledTimer(withTimeInterval: 25, repeats: true) { [weak self] _ in
-            self?.task?.sendPing { _ in }
+            Task { @MainActor [weak self] in
+                self?.task?.sendPing { _ in }
+            }
         }
     }
 
